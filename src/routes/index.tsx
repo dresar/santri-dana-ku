@@ -140,8 +140,8 @@ function DashboardPage() {
               <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-info" />Dicairkan</span>
             </div>
           </div>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+          <div className="h-72 w-full min-h-[300px]">
+            <ResponsiveContainer width="100%" height="100%" aspect={2.5}>
               <AreaChart data={grafikBulanan}>
                 <defs>
                   <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
@@ -171,7 +171,7 @@ function DashboardPage() {
             {grafikInstansi.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Belum ada data</div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <ResponsiveContainer width="100%" height="100%" aspect={1.2}>
                 <BarChart data={grafikInstansi} layout="vertical" margin={{ left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
                   <XAxis type="number" hide />

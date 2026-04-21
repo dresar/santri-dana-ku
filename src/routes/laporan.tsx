@@ -72,9 +72,9 @@ function LaporanPage() {
 
       <div className="mb-6 rounded-2xl border border-border bg-card p-5 shadow-soft">
         <h3 className="mb-4 font-semibold">Realisasi Anggaran Bulanan</h3>
-        <div className="h-72">
+        <div className="h-72 w-full min-h-[300px]">
           {grafik.length === 0 ? <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Belum ada data</div> : (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ResponsiveContainer width="100%" height="100%" aspect={3}>
               <BarChart data={grafik}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" vertical={false} />
                 <XAxis dataKey="bulan" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
