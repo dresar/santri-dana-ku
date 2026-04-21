@@ -1,6 +1,13 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { Outlet, Link, createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider } from "@/lib/auth-context";
+import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
+
+interface MyRouterContext {
+  queryClient: QueryClient;
+}
 
 function NotFoundComponent() {
   return (
@@ -19,7 +26,7 @@ function NotFoundComponent() {
   );
 }
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<MyRouterContext>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -30,10 +37,6 @@ export const Route = createRootRoute({
       { property: "og:title", content: "E-Budgeting Pesantren Modern Raudhatussalam Mahato" },
       { property: "og:description", content: "Sistem manajemen anggaran modern untuk Pesantren Raudhatussalam Mahato — ajuan, approval, pencairan, dan laporan keuangan dalam satu platform." },
       { property: "og:type", content: "website" },
-      { name: "twitter:title", content: "E-Budgeting Pesantren Modern Raudhatussalam Mahato" },
-      { name: "twitter:description", content: "Sistem manajemen anggaran modern untuk Pesantren Raudhatussalam Mahato — ajuan, approval, pencairan, dan laporan keuangan dalam satu platform." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/b01fe4bd-07f6-4758-abfd-e8db950748da" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/b01fe4bd-07f6-4758-abfd-e8db950748da" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
@@ -63,5 +66,13 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  const { queryClient } = Route.useRouteContext();
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Outlet />
+        <Toaster position="top-right" richColors />
+      </AuthProvider>
+    </QueryClientProvider>
+  );
 }
