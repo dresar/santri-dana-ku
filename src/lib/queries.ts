@@ -17,7 +17,7 @@ export interface AjuanRow {
   catatan: string | null;
   created_at: string;
   updated_at: string;
-  profiles?: { nama_lengkap: string } | null;
+  pengaju_nama?: string;
 }
 
 export interface AjuanItem {
@@ -36,10 +36,15 @@ export function useAjuanList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ajuan_anggaran")
-        .select("*, profiles:pengaju_id(nama_lengkap)")
+        .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as AjuanRow[];
+      const ids = Array.from(new Set((data ?? []).map(d => d.pengaju_id)));
+      const { data: profs } = ids.length
+        ? await supabase.from("profiles").select("id, nama_lengkap").in("id", ids)
+        : { data: [] as { id: string; nama_lengkap: string }[] };
+      const nameMap = new Map((profs ?? []).map(p => [p.id, p.nama_lengkap]));
+      return (data ?? []).map(d => ({ ...d, pengaju_nama: nameMap.get(d.pengaju_id) })) as AjuanRow[];
     },
   });
 }
@@ -49,15 +54,26 @@ export function useAjuanDetail(id: string) {
     queryKey: ["ajuan", id],
     queryFn: async () => {
       const [a, items, history] = await Promise.all([
-        supabase.from("ajuan_anggaran").select("*, profiles:pengaju_id(nama_lengkap)").eq("id", id).maybeSingle(),
+        supabase.from("ajuan_anggaran").select("*").eq("id", id).maybeSingle(),
         supabase.from("ajuan_items").select("*").eq("ajuan_id", id).order("created_at"),
-        supabase.from("approval_history").select("*, profiles:approver_id(nama_lengkap)").eq("ajuan_id", id).order("created_at"),
+        supabase.from("approval_history").select("*").eq("ajuan_id", id).order("created_at"),
       ]);
       if (a.error) throw a.error;
+      const ajuan = a.data as AjuanRow | null;
+      let pengajuNama: string | undefined;
+      if (ajuan) {
+        const { data: p } = await supabase.from("profiles").select("nama_lengkap").eq("id", ajuan.pengaju_id).maybeSingle();
+        pengajuNama = p?.nama_lengkap;
+      }
+      const approverIds = Array.from(new Set((history.data ?? []).map((h: { approver_id: string }) => h.approver_id)));
+      const { data: approvers } = approverIds.length
+        ? await supabase.from("profiles").select("id, nama_lengkap").in("id", approverIds)
+        : { data: [] as { id: string; nama_lengkap: string }[] };
+      const aMap = new Map((approvers ?? []).map(p => [p.id, p.nama_lengkap]));
       return {
-        ajuan: a.data as AjuanRow | null,
+        ajuan: ajuan ? { ...ajuan, pengaju_nama: pengajuNama } : null,
         items: (items.data ?? []) as AjuanItem[],
-        history: history.data ?? [],
+        history: (history.data ?? []).map((h: { approver_id: string } & Record<string, unknown>) => ({ ...h, approver_nama: aMap.get(h.approver_id) })),
       };
     },
     enabled: !!id,
@@ -163,7 +179,7 @@ export function usePencairan() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pencairan")
-        .select("*, ajuan_anggaran:ajuan_id(kode, judul, total)")
+        .select("*, ajuan_anggaran(kode, judul, total)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -196,11 +212,16 @@ export function useAuditLog() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("audit_log")
-        .select("*, profiles:user_id(nama_lengkap)")
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
-      return data;
+      const ids = Array.from(new Set((data ?? []).map(d => d.user_id).filter(Boolean) as string[]));
+      const { data: profs } = ids.length
+        ? await supabase.from("profiles").select("id, nama_lengkap").in("id", ids)
+        : { data: [] as { id: string; nama_lengkap: string }[] };
+      const nm = new Map((profs ?? []).map(p => [p.id, p.nama_lengkap]));
+      return (data ?? []).map(d => ({ ...d, user_nama: d.user_id ? nm.get(d.user_id) : undefined }));
     },
   });
 }
