@@ -9,38 +9,221 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PenggunaRouteImport } from './routes/pengguna'
+import { Route as PengaturanRouteImport } from './routes/pengaturan'
+import { Route as PencairanRouteImport } from './routes/pencairan'
+import { Route as NotifikasiRouteImport } from './routes/notifikasi'
+import { Route as LaporanRouteImport } from './routes/laporan'
+import { Route as AuditRouteImport } from './routes/audit'
+import { Route as ApprovalRouteImport } from './routes/approval'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AjuanIndexRouteImport } from './routes/ajuan.index'
+import { Route as AjuanBaruRouteImport } from './routes/ajuan.baru'
+import { Route as AjuanIdRouteImport } from './routes/ajuan.$id'
 
+const PenggunaRoute = PenggunaRouteImport.update({
+  id: '/pengguna',
+  path: '/pengguna',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PengaturanRoute = PengaturanRouteImport.update({
+  id: '/pengaturan',
+  path: '/pengaturan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PencairanRoute = PencairanRouteImport.update({
+  id: '/pencairan',
+  path: '/pencairan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotifikasiRoute = NotifikasiRouteImport.update({
+  id: '/notifikasi',
+  path: '/notifikasi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaporanRoute = LaporanRouteImport.update({
+  id: '/laporan',
+  path: '/laporan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditRoute = AuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApprovalRoute = ApprovalRouteImport.update({
+  id: '/approval',
+  path: '/approval',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AjuanIndexRoute = AjuanIndexRouteImport.update({
+  id: '/ajuan/',
+  path: '/ajuan/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AjuanBaruRoute = AjuanBaruRouteImport.update({
+  id: '/ajuan/baru',
+  path: '/ajuan/baru',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AjuanIdRoute = AjuanIdRouteImport.update({
+  id: '/ajuan/$id',
+  path: '/ajuan/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/approval': typeof ApprovalRoute
+  '/audit': typeof AuditRoute
+  '/laporan': typeof LaporanRoute
+  '/notifikasi': typeof NotifikasiRoute
+  '/pencairan': typeof PencairanRoute
+  '/pengaturan': typeof PengaturanRoute
+  '/pengguna': typeof PenggunaRoute
+  '/ajuan/$id': typeof AjuanIdRoute
+  '/ajuan/baru': typeof AjuanBaruRoute
+  '/ajuan/': typeof AjuanIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/approval': typeof ApprovalRoute
+  '/audit': typeof AuditRoute
+  '/laporan': typeof LaporanRoute
+  '/notifikasi': typeof NotifikasiRoute
+  '/pencairan': typeof PencairanRoute
+  '/pengaturan': typeof PengaturanRoute
+  '/pengguna': typeof PenggunaRoute
+  '/ajuan/$id': typeof AjuanIdRoute
+  '/ajuan/baru': typeof AjuanBaruRoute
+  '/ajuan': typeof AjuanIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/approval': typeof ApprovalRoute
+  '/audit': typeof AuditRoute
+  '/laporan': typeof LaporanRoute
+  '/notifikasi': typeof NotifikasiRoute
+  '/pencairan': typeof PencairanRoute
+  '/pengaturan': typeof PengaturanRoute
+  '/pengguna': typeof PenggunaRoute
+  '/ajuan/$id': typeof AjuanIdRoute
+  '/ajuan/baru': typeof AjuanBaruRoute
+  '/ajuan/': typeof AjuanIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/approval'
+    | '/audit'
+    | '/laporan'
+    | '/notifikasi'
+    | '/pencairan'
+    | '/pengaturan'
+    | '/pengguna'
+    | '/ajuan/$id'
+    | '/ajuan/baru'
+    | '/ajuan/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/approval'
+    | '/audit'
+    | '/laporan'
+    | '/notifikasi'
+    | '/pencairan'
+    | '/pengaturan'
+    | '/pengguna'
+    | '/ajuan/$id'
+    | '/ajuan/baru'
+    | '/ajuan'
+  id:
+    | '__root__'
+    | '/'
+    | '/approval'
+    | '/audit'
+    | '/laporan'
+    | '/notifikasi'
+    | '/pencairan'
+    | '/pengaturan'
+    | '/pengguna'
+    | '/ajuan/$id'
+    | '/ajuan/baru'
+    | '/ajuan/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApprovalRoute: typeof ApprovalRoute
+  AuditRoute: typeof AuditRoute
+  LaporanRoute: typeof LaporanRoute
+  NotifikasiRoute: typeof NotifikasiRoute
+  PencairanRoute: typeof PencairanRoute
+  PengaturanRoute: typeof PengaturanRoute
+  PenggunaRoute: typeof PenggunaRoute
+  AjuanIdRoute: typeof AjuanIdRoute
+  AjuanBaruRoute: typeof AjuanBaruRoute
+  AjuanIndexRoute: typeof AjuanIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/pengguna': {
+      id: '/pengguna'
+      path: '/pengguna'
+      fullPath: '/pengguna'
+      preLoaderRoute: typeof PenggunaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pengaturan': {
+      id: '/pengaturan'
+      path: '/pengaturan'
+      fullPath: '/pengaturan'
+      preLoaderRoute: typeof PengaturanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pencairan': {
+      id: '/pencairan'
+      path: '/pencairan'
+      fullPath: '/pencairan'
+      preLoaderRoute: typeof PencairanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifikasi': {
+      id: '/notifikasi'
+      path: '/notifikasi'
+      fullPath: '/notifikasi'
+      preLoaderRoute: typeof NotifikasiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/laporan': {
+      id: '/laporan'
+      path: '/laporan'
+      fullPath: '/laporan'
+      preLoaderRoute: typeof LaporanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit': {
+      id: '/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/approval': {
+      id: '/approval'
+      path: '/approval'
+      fullPath: '/approval'
+      preLoaderRoute: typeof ApprovalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,21 +231,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ajuan/': {
+      id: '/ajuan/'
+      path: '/ajuan'
+      fullPath: '/ajuan/'
+      preLoaderRoute: typeof AjuanIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ajuan/baru': {
+      id: '/ajuan/baru'
+      path: '/ajuan/baru'
+      fullPath: '/ajuan/baru'
+      preLoaderRoute: typeof AjuanBaruRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ajuan/$id': {
+      id: '/ajuan/$id'
+      path: '/ajuan/$id'
+      fullPath: '/ajuan/$id'
+      preLoaderRoute: typeof AjuanIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApprovalRoute: ApprovalRoute,
+  AuditRoute: AuditRoute,
+  LaporanRoute: LaporanRoute,
+  NotifikasiRoute: NotifikasiRoute,
+  PencairanRoute: PencairanRoute,
+  PengaturanRoute: PengaturanRoute,
+  PenggunaRoute: PenggunaRoute,
+  AjuanIdRoute: AjuanIdRoute,
+  AjuanBaruRoute: AjuanBaruRoute,
+  AjuanIndexRoute: AjuanIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
