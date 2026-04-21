@@ -1,13 +1,11 @@
-import postgres from 'postgres';
-
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
-  throw new Error('DATABASE_URL is not set');
+  console.error('DATABASE_URL is not set. Database operations will fail.');
 }
 
-export const sql = postgres(connectionString, {
-  ssl: 'require',
+export const sql = postgres(connectionString || 'postgres://localhost/missing', {
+  ssl: connectionString ? 'require' : false,
   max: 10,
 });
 

@@ -12,6 +12,16 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 // Middleware
 app.use('*', cors());
 
+// Error Handling
+app.onError((err, c) => {
+  console.error('[Hono Error]:', err);
+  return c.json({
+    status: 'error',
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  }, 500);
+});
+
 // Auth Helper
 const createToken = async (user: any) => {
   return await sign({
