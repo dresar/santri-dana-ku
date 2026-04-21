@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
 import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
 import { useAjuanList, useAuditLog } from "@/lib/queries";
@@ -13,6 +13,8 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardPage() {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
   const { profile } = useAuth();
   const { data: ajuan = [], isLoading } = useAjuanList();
   const { data: audit = [] } = useAuditLog();
@@ -141,26 +143,28 @@ function DashboardPage() {
             </div>
           </div>
           <div className="h-72 w-full min-h-[300px]">
-            <ResponsiveContainer width="100%" height="100%" aspect={2.5}>
-              <AreaChart data={grafikBulanan}>
-                <defs>
-                  <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="bulan" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
-                <Area type="monotone" dataKey="ajuan" stroke="#10b981" strokeWidth={2.5} fill="url(#g1)" />
-                <Area type="monotone" dataKey="dicairkan" stroke="#3b82f6" strokeWidth={2.5} fill="url(#g2)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {isMounted && (
+              <ResponsiveContainer width="100%" height="100%" aspect={2.5}>
+                <AreaChart data={grafikBulanan}>
+                  <defs>
+                    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="bulan" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                  <Area type="monotone" dataKey="ajuan" stroke="#10b981" strokeWidth={2.5} fill="url(#g1)" />
+                  <Area type="monotone" dataKey="dicairkan" stroke="#3b82f6" strokeWidth={2.5} fill="url(#g2)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -171,15 +175,17 @@ function DashboardPage() {
             {grafikInstansi.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Belum ada data</div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" aspect={1.2}>
-                <BarChart data={grafikInstansi} layout="vertical" margin={{ left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="instansi" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={70} />
-                  <Tooltip formatter={(v) => formatRupiah(Number(v))} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
-                  <Bar dataKey="nilai" fill="#10b981" radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {isMounted && (
+                <ResponsiveContainer width="100%" height="100%" aspect={1.2}>
+                  <BarChart data={grafikInstansi} layout="vertical" margin={{ left: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                    <XAxis type="number" hide />
+                    <YAxis type="category" dataKey="instansi" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={70} />
+                    <Tooltip formatter={(v) => formatRupiah(Number(v))} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                    <Bar dataKey="nilai" fill="#10b981" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             )}
           </div>
         </div>
