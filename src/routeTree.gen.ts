@@ -14,6 +14,7 @@ import { Route as PengaturanRouteImport } from './routes/pengaturan'
 import { Route as PencairanRouteImport } from './routes/pencairan'
 import { Route as NotifikasiRouteImport } from './routes/notifikasi'
 import { Route as LaporanRouteImport } from './routes/laporan'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuditRouteImport } from './routes/audit'
 import { Route as ApprovalRouteImport } from './routes/approval'
 import { Route as IndexRouteImport } from './routes/index'
@@ -44,6 +45,11 @@ const NotifikasiRoute = NotifikasiRouteImport.update({
 const LaporanRoute = LaporanRouteImport.update({
   id: '/laporan',
   path: '/laporan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuditRoute = AuditRouteImport.update({
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/approval': typeof ApprovalRoute
   '/audit': typeof AuditRoute
+  '/auth': typeof AuthRoute
   '/laporan': typeof LaporanRoute
   '/notifikasi': typeof NotifikasiRoute
   '/pencairan': typeof PencairanRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/approval': typeof ApprovalRoute
   '/audit': typeof AuditRoute
+  '/auth': typeof AuthRoute
   '/laporan': typeof LaporanRoute
   '/notifikasi': typeof NotifikasiRoute
   '/pencairan': typeof PencairanRoute
@@ -108,6 +116,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/approval': typeof ApprovalRoute
   '/audit': typeof AuditRoute
+  '/auth': typeof AuthRoute
   '/laporan': typeof LaporanRoute
   '/notifikasi': typeof NotifikasiRoute
   '/pencairan': typeof PencairanRoute
@@ -123,6 +132,7 @@ export interface FileRouteTypes {
     | '/'
     | '/approval'
     | '/audit'
+    | '/auth'
     | '/laporan'
     | '/notifikasi'
     | '/pencairan'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/'
     | '/approval'
     | '/audit'
+    | '/auth'
     | '/laporan'
     | '/notifikasi'
     | '/pencairan'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/'
     | '/approval'
     | '/audit'
+    | '/auth'
     | '/laporan'
     | '/notifikasi'
     | '/pencairan'
@@ -163,6 +175,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApprovalRoute: typeof ApprovalRoute
   AuditRoute: typeof AuditRoute
+  AuthRoute: typeof AuthRoute
   LaporanRoute: typeof LaporanRoute
   NotifikasiRoute: typeof NotifikasiRoute
   PencairanRoute: typeof PencairanRoute
@@ -208,6 +221,13 @@ declare module '@tanstack/react-router' {
       path: '/laporan'
       fullPath: '/laporan'
       preLoaderRoute: typeof LaporanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/audit': {
@@ -259,6 +279,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApprovalRoute: ApprovalRoute,
   AuditRoute: AuditRoute,
+  AuthRoute: AuthRoute,
   LaporanRoute: LaporanRoute,
   NotifikasiRoute: NotifikasiRoute,
   PencairanRoute: PencairanRoute,

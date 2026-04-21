@@ -1,36 +1,64 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { AppLayout } from "@/components/AppLayout";
-import { PageHeader, Toast } from "@/components/PageHeader";
-import { ajuanData, formatRupiah } from "@/lib/dummy-data";
-import { Search, Wallet, CheckCircle2, Upload, X, Building2, User, Calendar } from "lucide-react";
+import { useState, useMemo } from "react";
+import { PageHeader } from "@/components/PageHeader";
+import { formatRupiah } from "@/lib/dummy-data";
+import { useAjuanList, useCreatePencairan } from "@/lib/queries";
+import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/integrations/supabase/client";
+import { Search, Wallet, CheckCircle2, Upload, X, Building2, User, Calendar, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import type { LucideIcon } from "lucide-react";
 
 export const Route = createFileRoute("/pencairan")({
   head: () => ({ meta: [{ title: "Pencairan Dana — E-Budgeting Pesantren" }] }),
   component: PencairanPage,
 });
 
-const banks = ["Bank Syariah Indonesia (BSI)", "Bank Muamalat", "Bank Mandiri Syariah", "Bank Riau Kepri Syariah", "BCA Syariah"];
+const banks = ["Bank Syariah Indonesia (BSI)", "Bank Muamalat", "Bank Mandiri", "Bank Riau Kepri Syariah", "BCA Syariah"];
 
 function PencairanPage() {
-  const disetujui = ajuanData.filter(a => a.status === "disetujui" || a.status === "dicairkan");
+  const { data: ajuanData = [] } = useAjuanList();
+  const { user } = useAuth();
+  const create = useCreatePencairan();
+  const disetujui = useMemo(() => ajuanData.filter(a => a.status === "disetujui" || a.status === "dicairkan"), [ajuanData]);
   const [q, setQ] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(disetujui[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bank, setBank] = useState(banks[0]);
   const [norek, setNorek] = useState("");
   const [pemilik, setPemilik] = useState("");
-  const [bukti, setBukti] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [buktiFile, setBuktiFile] = useState<File | null>(null);
+  const [buktiPreview, setBuktiPreview] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const found = disetujui.filter(a => `${a.kode} ${a.judul}`.toLowerCase().includes(q.toLowerCase()));
-  const selected = ajuanData.find(a => a.id === selectedId);
+  const selected = ajuanData.find(a => a.id === selectedId) ?? disetujui[0];
 
-  const submit = () => {
-    setToast(`Pencairan untuk ${selected?.kode} berhasil diproses`);
+  const submit = async () => {
+    if (!selected || !user) return;
+    if (selected.status === "dicairkan") { toast.error("Ajuan ini sudah dicairkan"); return; }
+    if (!norek.trim() || !pemilik.trim()) { toast.error("Lengkapi nomor rekening dan nama pemilik"); return; }
+    setBusy(true);
+    let bukti_url: string | undefined;
+    if (buktiFile) {
+      const path = `${user.id}/pencairan-${Date.now()}-${buktiFile.name}`;
+      const { error: e } = await supabase.storage.from("bukti").upload(path, buktiFile);
+      if (e) { toast.error("Upload gagal", { description: e.message }); setBusy(false); return; }
+      bukti_url = supabase.storage.from("bukti").getPublicUrl(path).data.publicUrl;
+    }
+    try {
+      await create.mutateAsync({
+        ajuan_id: selected.id, bank, no_rekening: norek, nama_pemilik: pemilik,
+        jumlah: Number(selected.total), bukti_url,
+      });
+      toast.success(`Pencairan ${selected.kode} berhasil`);
+      setNorek(""); setPemilik(""); setBuktiFile(null); setBuktiPreview(null);
+    } catch (e) {
+      toast.error("Gagal", { description: (e as Error).message });
+    } finally { setBusy(false); }
   };
 
   return (
-    <AppLayout>
+    <>
       <PageHeader title="Pencairan Dana" description="Proses pencairan untuk ajuan yang telah disetujui" />
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -42,15 +70,15 @@ function PencairanPage() {
             </div>
             <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Ajuan disetujui</p>
             <ul className="scrollbar-thin max-h-[480px] space-y-1.5 overflow-y-auto">
-              {found.length === 0 ? <li className="rounded-lg p-4 text-center text-sm text-muted-foreground">Tidak ada hasil</li> : found.map(a => (
+              {found.length === 0 ? <li className="rounded-lg p-4 text-center text-sm text-muted-foreground">Tidak ada ajuan disetujui</li> : found.map(a => (
                 <li key={a.id}>
-                  <button onClick={() => setSelectedId(a.id)} className={`w-full rounded-lg border p-3 text-left transition-all ${selectedId === a.id ? "border-primary bg-primary-soft" : "border-border hover:bg-secondary/60"}`}>
+                  <button onClick={() => setSelectedId(a.id)} className={`w-full rounded-lg border p-3 text-left transition-all ${selected?.id === a.id ? "border-primary bg-primary-soft" : "border-border hover:bg-secondary/60"}`}>
                     <div className="flex items-center justify-between">
                       <p className="font-mono text-xs font-semibold">{a.kode}</p>
                       {a.status === "dicairkan" && <CheckCircle2 className="h-4 w-4 text-info" />}
                     </div>
                     <p className="mt-1 truncate text-sm font-semibold">{a.judul}</p>
-                    <p className="mt-0.5 text-xs text-primary">{formatRupiah(a.total)}</p>
+                    <p className="mt-0.5 text-xs text-primary">{formatRupiah(Number(a.total))}</p>
                   </button>
                 </li>
               ))}
@@ -68,69 +96,69 @@ function PencairanPage() {
                     <p className="font-mono text-xs font-semibold text-muted-foreground">{selected.kode}</p>
                     <h3 className="font-bold">{selected.judul}</h3>
                   </div>
-                  <p className="ml-auto text-2xl font-bold text-primary">{formatRupiah(selected.total)}</p>
+                  <p className="ml-auto text-2xl font-bold text-primary">{formatRupiah(Number(selected.total))}</p>
                 </div>
                 <div className="grid gap-3 rounded-xl bg-secondary/40 p-4 sm:grid-cols-3">
-                  <Info icon={User} label="Pengaju" value={selected.pengaju} />
+                  <Info icon={User} label="Pengaju" value={selected.pengaju_nama ?? "—"} />
                   <Info icon={Building2} label="Instansi" value={selected.instansi} />
-                  <Info icon={Calendar} label="Tanggal" value={selected.tanggal} />
+                  <Info icon={Calendar} label="Tanggal" value={new Date(selected.created_at).toLocaleDateString("id-ID")} />
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-                <h3 className="mb-4 font-semibold">Form Pencairan Dana</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold">Bank Tujuan</label>
-                    <select value={bank} onChange={e => setBank(e.target.value)} className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20">
-                      {banks.map(b => <option key={b}>{b}</option>)}
-                    </select>
+              {selected.status !== "dicairkan" && (
+                <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+                  <h3 className="mb-4 font-semibold">Form Pencairan Dana</h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold">Bank Tujuan</label>
+                      <select value={bank} onChange={e => setBank(e.target.value)} className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20">
+                        {banks.map(b => <option key={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold">Nomor Rekening</label>
+                      <input value={norek} onChange={e => setNorek(e.target.value)} placeholder="7012345678" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="mb-1.5 block text-xs font-semibold">Nama Pemilik Rekening</label>
+                      <input value={pemilik} onChange={e => setPemilik(e.target.value)} placeholder="Nama sesuai buku rekening" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="mb-1.5 block text-xs font-semibold">Bukti Transfer</label>
+                      {buktiPreview ? (
+                        <div className="relative inline-block">
+                          <img src={buktiPreview} alt="Bukti" className="max-h-44 rounded-lg border border-border" />
+                          <button onClick={() => { setBuktiPreview(null); setBuktiFile(null); }} className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground"><X className="h-4 w-4" /></button>
+                        </div>
+                      ) : (
+                        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-secondary/30 p-6 text-center hover:bg-secondary/60">
+                          <Upload className="h-5 w-5 text-muted-foreground" />
+                          <p className="text-sm font-semibold">Klik untuk unggah bukti</p>
+                          <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setBuktiFile(f); setBuktiPreview(URL.createObjectURL(f)); } }} />
+                        </label>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold">Nomor Rekening</label>
-                    <input value={norek} onChange={e => setNorek(e.target.value)} placeholder="7012345678" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="mb-1.5 block text-xs font-semibold">Nama Pemilik Rekening</label>
-                    <input value={pemilik} onChange={e => setPemilik(e.target.value)} placeholder="Nama sesuai buku rekening" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="mb-1.5 block text-xs font-semibold">Bukti Transfer</label>
-                    {bukti ? (
-                      <div className="relative inline-block">
-                        <img src={bukti} alt="Bukti transfer" className="max-h-44 rounded-lg border border-border" />
-                        <button onClick={() => setBukti(null)} className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground"><X className="h-4 w-4" /></button>
-                      </div>
-                    ) : (
-                      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-secondary/30 p-6 text-center hover:bg-secondary/60">
-                        <Upload className="h-5 w-5 text-muted-foreground" />
-                        <p className="text-sm font-semibold">Klik untuk unggah bukti transfer</p>
-                        <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setBukti(URL.createObjectURL(f)); }} />
-                      </label>
-                    )}
+                  <div className="mt-5 flex justify-end gap-2">
+                    <button onClick={submit} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Proses Pencairan
+                    </button>
                   </div>
                 </div>
-                <div className="mt-5 flex justify-end gap-2">
-                  <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold hover:bg-secondary">Batal</button>
-                  <button onClick={submit} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-                    <Wallet className="h-4 w-4" /> Proses Pencairan
-                  </button>
-                </div>
-              </div>
+              )}
             </>
           ) : (
             <div className="rounded-2xl border border-border bg-card p-12 text-center text-muted-foreground">
-              Pilih ajuan di sebelah kiri untuk memulai pencairan.
+              Belum ada ajuan yang disetujui untuk dicairkan.
             </div>
           )}
         </div>
       </div>
-      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-    </AppLayout>
+    </>
   );
 }
 
-function Info({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+function Info({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
     <div className="flex items-center gap-2.5">
       <Icon className="h-4 w-4 text-muted-foreground" />

@@ -1,41 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { AppLayout } from "@/components/AppLayout";
+import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { auditLogData } from "@/lib/dummy-data";
-import { Search, Filter, Download } from "lucide-react";
+import { useAuditLog } from "@/lib/queries";
+import { Search, Filter, Download, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/audit")({
   head: () => ({ meta: [{ title: "Audit Log — E-Budgeting Pesantren" }] }),
   component: AuditPage,
 });
 
-const aksiColor: Record<string, string> = {
-  CREATE: "bg-info/10 text-info border-info/30",
-  UPDATE: "bg-warning/15 text-warning-foreground border-warning/30",
-  APPROVE: "bg-primary/12 text-primary border-primary/25",
-  REJECT: "bg-destructive/12 text-destructive border-destructive/25",
-  DISBURSE: "bg-success/10 text-success border-success/30",
-  LOGIN: "bg-secondary text-muted-foreground border-border",
-  EXPORT: "bg-accent text-accent-foreground border-border",
-};
-
 function AuditPage() {
   const [q, setQ] = useState("");
   const [aksi, setAksi] = useState("all");
   const [modul, setModul] = useState("all");
+  const { data: log = [], isLoading } = useAuditLog();
 
-  const filtered = auditLogData.filter(a =>
+  const filtered = useMemo(() => log.filter(a =>
     (aksi === "all" || a.aksi === aksi) &&
     (modul === "all" || a.modul === modul) &&
-    (!q || `${a.aktor} ${a.detail} ${a.ip}`.toLowerCase().includes(q.toLowerCase()))
-  );
+    (!q || `${a.user_nama ?? ""} ${a.aksi} ${a.modul}`.toLowerCase().includes(q.toLowerCase()))
+  ), [log, q, aksi, modul]);
 
-  const allAksi = Array.from(new Set(auditLogData.map(a => a.aksi)));
-  const allModul = Array.from(new Set(auditLogData.map(a => a.modul)));
+  const allAksi = Array.from(new Set(log.map(a => a.aksi)));
+  const allModul = Array.from(new Set(log.map(a => a.modul)));
 
   return (
-    <AppLayout>
+    <>
       <PageHeader title="Audit Log" description="Riwayat seluruh aktivitas pengguna pada sistem"
         actions={<button className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold hover:bg-secondary"><Download className="h-4 w-4" /> Export Log</button>}
       />
@@ -44,7 +34,7 @@ function AuditPage() {
         <div className="flex flex-col gap-3 border-b border-border p-4 md:flex-row md:items-center">
           <div className="relative md:max-w-xs md:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cari aktivitas, aktor, atau IP..." className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none focus:border-ring" />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cari aktivitas..." className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none focus:border-ring" />
           </div>
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
@@ -68,31 +58,29 @@ function AuditPage() {
                 <th className="px-4 py-3 font-semibold">Aksi</th>
                 <th className="px-4 py-3 font-semibold">Modul</th>
                 <th className="px-4 py-3 font-semibold">Detail</th>
-                <th className="px-4 py-3 font-semibold">IP Address</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">Tidak ada log yang sesuai.</td></tr>
+              {isLoading ? (
+                <tr><td colSpan={5} className="px-4 py-12 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-muted-foreground">Belum ada log aktivitas.</td></tr>
               ) : filtered.map(a => (
                 <tr key={a.id} className="border-b border-border last:border-0 hover:bg-secondary/40">
-                  <td className="px-4 py-3 font-mono text-xs">{a.waktu}</td>
-                  <td className="px-4 py-3 font-semibold">{a.aktor}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{new Date(a.created_at).toLocaleString("id-ID")}</td>
+                  <td className="px-4 py-3 font-semibold">{a.user_nama ?? "Sistem"}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-md border px-2 py-0.5 text-[11px] font-bold ${aksiColor[a.aksi] ?? "border-border bg-secondary"}`}>{a.aksi}</span>
+                    <span className="inline-flex rounded-md border border-border bg-secondary px-2 py-0.5 text-[11px] font-bold uppercase">{a.aksi}</span>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{a.modul}</td>
-                  <td className="px-4 py-3">{a.detail}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{a.ip}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{a.detail ? JSON.stringify(a.detail) : "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div className="border-t border-border p-3 text-xs text-muted-foreground">
-          {filtered.length} entri ditampilkan
-        </div>
+        <div className="border-t border-border p-3 text-xs text-muted-foreground">{filtered.length} entri</div>
       </div>
-    </AppLayout>
+    </>
   );
 }
