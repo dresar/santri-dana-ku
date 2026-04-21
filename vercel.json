@@ -1,12 +1,11 @@
 {
   "version": 2,
-  "name": "santri-dana-ku",
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/[[...route]].ts"
+      "destination": "/api"
     },
     {
       "source": "/(.*)",
