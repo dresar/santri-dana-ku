@@ -22,7 +22,13 @@ export function useAjuanDetail(id: string) {
       await new Promise(r => setTimeout(r, 400));
       const ajuan = mockStore.getAjuanDetail(id);
       if (!ajuan) throw new Error("Ajuan tidak ditemukan");
-      return { ajuan, items: ajuan.items, history: [] };
+      return { 
+        ajuan, 
+        items: ajuan.items, 
+        history: [
+          { id: "h1", aksi: "diajukan", approver_nama: "Ustadz Yusuf", catatan: "Ajuan awal", created_at: new Date().toISOString() }
+        ] as any[]
+      };
     },
     enabled: !!id,
   });
@@ -66,7 +72,10 @@ export function useApproval() {
 export function useNotifikasi() {
   return useQuery({
     queryKey: ["notifikasi"],
-    queryFn: () => [], // Dummy for now
+    queryFn: async () => [
+      { id: "n1", judul: "Ajuan Disetujui", pesan: "Ajuan AJU-2025-1234 telah disetujui", tipe: "sukses", dibaca: false, created_at: new Date().toISOString() },
+      { id: "n2", judul: "Pencairan Berhasil", pesan: "Dana ajuan AJU-2025-5678 telah dicairkan", tipe: "info", dibaca: true, created_at: new Date().toISOString() },
+    ],
   });
 }
 
@@ -117,8 +126,8 @@ export function usePengguna() {
   return useQuery({
     queryKey: ["pengguna"],
     queryFn: async () => [
-      { id: "u1", nama_lengkap: "Admin Utama", email: "admin@example.com", role: "admin", instansi: "Sekretariat Pesantren" },
-      { id: "u2", nama_lengkap: "Ustadz Ahmad", email: "pengaju@example.com", role: "pengaju", instansi: "Unit Dapur Umum" },
+      { id: "u1", nama_lengkap: "Admin Utama", email: "admin@example.com", role: "admin", instansi: "Sekretariat Pesantren", jabatan: "Kepala Administrasi", no_hp: "081234567890", created_at: new Date().toISOString() },
+      { id: "u2", nama_lengkap: "Ustadz Ahmad", email: "pengaju@example.com", role: "pengaju", instansi: "Unit Dapur Umum", jabatan: "Bendahara Unit", no_hp: "081234567891", created_at: new Date().toISOString() },
     ],
   });
 }
