@@ -10,14 +10,15 @@ export const Route = createFileRoute("/approval")({
   component: ApprovalPage,
 });
 
-const tabs: { value: StatusAjuan; label: string }[] = [
+type ApprovalTab = "menunggu" | "disetujui" | "ditolak";
+const tabs: { value: ApprovalTab; label: string }[] = [
   { value: "menunggu", label: "Menunggu" },
   { value: "disetujui", label: "Disetujui" },
   { value: "ditolak", label: "Ditolak" },
 ];
 
 function ApprovalPage() {
-  const [tab, setTab] = useState<StatusAjuan>("menunggu");
+  const [tab, setTab] = useState<ApprovalTab>("menunggu");
   const [confirm, setConfirm] = useState<{ id: string; aksi: "setuju" | "tolak" } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const list = useMemo(() => ajuanData.filter(a => a.status === tab), [tab]);

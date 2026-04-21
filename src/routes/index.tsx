@@ -104,7 +104,7 @@ function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" horizontal={false} />
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="instansi" tick={{ fontSize: 11, fill: "oklch(0.5 0.02 250)" }} axisLine={false} tickLine={false} width={70} />
-                <Tooltip formatter={(v: number) => formatRupiah(v)} contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.01 240)", fontSize: 12 }} />
+                <Tooltip formatter={(v) => formatRupiah(Number(v))} contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.01 240)", fontSize: 12 }} />
                 <Bar dataKey="nilai" fill="oklch(0.58 0.15 162)" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>

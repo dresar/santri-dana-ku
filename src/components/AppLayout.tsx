@@ -19,7 +19,7 @@ const menu = [
   { to: "/pengaturan", label: "Pengaturan", icon: Settings },
 ] as const;
 
-export function AppLayout() {
+export function AppLayout({ children }: { children?: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
@@ -138,7 +138,7 @@ export function AppLayout() {
 
         <main className="flex-1 p-4 md:p-6 lg:p-8">
           <div className="animate-fade-in mx-auto max-w-[1400px]">
-            <Outlet />
+            {children ?? <Outlet />}
           </div>
         </main>
       </div>
