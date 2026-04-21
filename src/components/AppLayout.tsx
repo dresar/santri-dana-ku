@@ -25,7 +25,7 @@ export function AppLayout({ children }: { children?: React.ReactNode }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
   const router = useRouter();
-  const { user, profile, role, signOut } = useAuth();
+  const { user, profile, role, signOut, loading } = useAuth();
   const { data: notifList = [] } = useNotifikasi();
   const unread = notifList.filter((n) => !n.dibaca).length;
   const initials = (profile?.nama_lengkap ?? user?.email ?? "U")
@@ -33,6 +33,17 @@ export function AppLayout({ children }: { children?: React.ReactNode }) {
 
   const isActive = (to: string, exact?: boolean) =>
     exact ? location.pathname === to : location.pathname === to || location.pathname.startsWith(to + "/");
+
+  // Auth guard
+  if (loading) {
+    return <div className="flex min-h-screen items-center justify-center bg-background"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
+  }
+  if (!user) {
+    if (typeof window !== "undefined" && location.pathname !== "/auth") {
+      router.navigate({ to: "/auth" });
+    }
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
