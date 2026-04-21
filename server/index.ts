@@ -105,7 +105,7 @@ app.post('/auth/dev-login', async (c) => {
 const authMiddleware = jwt({ secret: JWT_SECRET, alg: 'HS256' });
 
 app.get('/auth/me', authMiddleware, async (c) => {
-  const payload = c.get('jwtPayload');
+  const payload = c.get('jwtPayload') as any;
   const [user] = await sql`SELECT id, email, nama_lengkap, jabatan, instansi, no_hp, foto_url FROM profiles WHERE id = ${payload.id}`;
   const [roleObj] = await sql`SELECT role FROM user_roles WHERE user_id = ${payload.id}`;
   
@@ -134,7 +134,7 @@ app.get('/ajuan/:id', authMiddleware, async (c) => {
 });
 
 app.post('/ajuan', authMiddleware, async (c) => {
-  const payload = c.get('jwtPayload');
+  const payload = c.get('jwtPayload') as any;
   const { judul, instansi, rencana_penggunaan, total, items, bukti_url } = await c.req.json();
   const kode = `AJU-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
 
@@ -168,7 +168,7 @@ app.post('/ajuan', authMiddleware, async (c) => {
 
 // --- APPROVAL ---
 app.post('/ajuan/:id/approve', authMiddleware, async (c) => {
-  const payload = c.get('jwtPayload');
+  const payload = c.get('jwtPayload') as any;
   const ajuanId = c.req.param('id');
   const { aksi, catatan } = await c.req.json();
 
@@ -195,7 +195,7 @@ app.post('/ajuan/:id/approve', authMiddleware, async (c) => {
 
 // --- NOTIFIKASI ---
 app.get('/notifikasi', authMiddleware, async (c) => {
-  const payload = c.get('jwtPayload');
+  const payload = c.get('jwtPayload') as any;
   const data = await sql`SELECT * FROM notifikasi WHERE user_id = ${payload.id} ORDER BY created_at DESC`;
   return c.json(data);
 });
@@ -218,7 +218,7 @@ app.get('/pencairan', authMiddleware, async (c) => {
 });
 
 app.post('/pencairan', authMiddleware, async (c) => {
-  const payload = c.get('jwtPayload');
+  const payload = c.get('jwtPayload') as any;
   const input = await c.req.json();
 
   try {
@@ -255,7 +255,7 @@ app.get('/pengguna', authMiddleware, async (c) => {
 app.patch('/pengguna/:id/role', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const { role } = await c.req.json();
-  const payload = c.get('jwtPayload');
+  const payload = c.get('jwtPayload') as any;
 
   // Check if current user is admin
   const [currentRole] = await sql`SELECT role FROM user_roles WHERE user_id = ${payload.id}`;
