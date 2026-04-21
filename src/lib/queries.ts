@@ -73,7 +73,7 @@ export function useAjuanDetail(id: string) {
       return {
         ajuan: ajuan ? { ...ajuan, pengaju_nama: pengajuNama } : null,
         items: (items.data ?? []) as AjuanItem[],
-        history: (history.data ?? []).map((h: { approver_id: string } & Record<string, unknown>) => ({ ...h, approver_nama: aMap.get(h.approver_id) })),
+        history: (history.data ?? []).map((h) => ({ ...(h as Record<string, unknown>), approver_nama: aMap.get((h as { approver_id: string }).approver_id) })),
       };
     },
     enabled: !!id,
