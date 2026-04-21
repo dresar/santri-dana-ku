@@ -24,6 +24,23 @@ const createToken = async (user: any) => {
 // Public Routes
 app.get('/hello', (c) => c.json({ message: 'Hello from Hono!' }));
 
+app.get('/health', async (c) => {
+  try {
+    const start = Date.now();
+    const [row] = await sql`SELECT 1 as ok`;
+    const checkTable = await sql`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'profiles')`;
+    return c.json({ 
+      status: 'ok', 
+      database: row.ok === 1 ? 'connected' : 'error',
+      profiles_table: checkTable[0].exists ? 'exists' : 'missing',
+      latency: `${Date.now() - start}ms`
+    });
+  } catch (err: any) {
+    console.error('Health Check Error:', err);
+    return c.json({ status: 'error', message: err.message }, 500);
+  }
+});
+
 // Register
 app.post('/auth/signup', async (c) => {
   const { email, password, nama_lengkap, jabatan, instansi, no_hp } = await c.req.json();
