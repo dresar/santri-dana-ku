@@ -23,7 +23,7 @@ export const Route = createFileRoute("/ajuan/$id")({
 });
 
 function DetailAjuanPage() {
-  const { ajuan } = Route.useLoaderData();
+  const { ajuan } = Route.useLoaderData() as { ajuan: Ajuan };
 
   return (
     <AppLayout>
