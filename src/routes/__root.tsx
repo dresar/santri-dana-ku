@@ -1,12 +1,9 @@
 import * as React from "react";
-import { Outlet, Link, createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
+import { Outlet, Link, createRootRouteWithContext, useLocation } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth-context";
 import { Toaster } from "@/components/ui/sonner";
 import { AppLayout } from "@/components/AppLayout";
-import { useLocation } from "@tanstack/react-router";
-
-import appCss from "../styles.css?url";
 
 interface MyRouterContext {
   queryClient: QueryClient;
@@ -30,43 +27,9 @@ function NotFoundComponent() {
 }
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "E-Budgeting Pesantren Modern Raudhatussalam Mahato" },
-      { name: "description", content: "Sistem manajemen anggaran modern untuk Pesantren Raudhatussalam Mahato — ajuan, approval, pencairan, dan laporan keuangan dalam satu platform." },
-      { name: "author", content: "Pesantren Modern Raudhatussalam Mahato" },
-      { property: "og:title", content: "E-Budgeting Pesantren Modern Raudhatussalam Mahato" },
-      { property: "og:description", content: "Sistem manajemen anggaran modern untuk Pesantren Raudhatussalam Mahato — ajuan, approval, pencairan, dan laporan keuangan dalam satu platform." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" },
-      { rel: "stylesheet", href: appCss },
-    ],
-  }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
 });
-
-function RootShell({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="id">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
