@@ -1,17 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { AppLayout } from "@/components/AppLayout";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
-import { ajuanData, formatRupiah, statusBadgeClass, statusLabel, type StatusAjuan } from "@/lib/dummy-data";
-import { Search, Plus, Filter, Eye, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/dummy-data";
+import { useAjuanList, type AjuanStatus } from "@/lib/queries";
+import { Search, Plus, Filter, Eye, ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/ajuan/")({
   head: () => ({ meta: [{ title: "Ajuan Anggaran — E-Budgeting Pesantren" }] }),
   component: AjuanListPage,
 });
 
-const PER_PAGE = 6;
-const filterOptions: { value: "all" | StatusAjuan; label: string }[] = [
+const PER_PAGE = 8;
+const filterOptions: { value: "all" | AjuanStatus; label: string }[] = [
   { value: "all", label: "Semua" },
   { value: "draft", label: "Draft" },
   { value: "menunggu", label: "Menunggu" },
@@ -22,22 +22,23 @@ const filterOptions: { value: "all" | StatusAjuan; label: string }[] = [
 
 function AjuanListPage() {
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<"all" | StatusAjuan>("all");
+  const [status, setStatus] = useState<"all" | AjuanStatus>("all");
   const [page, setPage] = useState(1);
+  const { data: ajuanData = [], isLoading } = useAjuanList();
 
   const filtered = useMemo(() => {
     return ajuanData.filter(a => {
       if (status !== "all" && a.status !== status) return false;
-      if (q && !`${a.kode} ${a.judul} ${a.pengaju} ${a.instansi}`.toLowerCase().includes(q.toLowerCase())) return false;
+      if (q && !`${a.kode} ${a.judul} ${a.pengaju_nama ?? ""} ${a.instansi}`.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
-  }, [q, status]);
+  }, [q, status, ajuanData]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
-    <AppLayout>
+    <>
       <PageHeader
         title="Ajuan Anggaran"
         description="Kelola seluruh ajuan anggaran dari setiap unit pesantren"
@@ -92,9 +93,11 @@ function AjuanListPage() {
               </tr>
             </thead>
             <tbody>
-              {paged.length === 0 ? (
+              {isLoading ? (
+                <tr><td colSpan={7} className="px-4 py-16 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></td></tr>
+              ) : paged.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-16 text-center text-sm text-muted-foreground">
-                  Tidak ada ajuan yang sesuai dengan pencarian.
+                  Belum ada ajuan. Klik "Buat Ajuan" untuk membuat ajuan pertama.
                 </td></tr>
               ) : paged.map(a => (
                 <tr key={a.id} className="border-b border-border last:border-0 transition-colors hover:bg-secondary/40">
@@ -103,9 +106,9 @@ function AjuanListPage() {
                     <p className="font-semibold">{a.judul}</p>
                     <p className="text-xs text-muted-foreground">{a.instansi}</p>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{a.pengaju}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{a.tanggal}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatRupiah(a.total)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{a.pengaju_nama ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{new Date(a.created_at).toLocaleDateString("id-ID")}</td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatRupiah(Number(a.total))}</td>
                   <td className="px-4 py-3"><StatusBadge className={statusBadgeClass[a.status]}>{statusLabel[a.status]}</StatusBadge></td>
                   <td className="px-4 py-3 text-right">
                     <Link to="/ajuan/$id" params={{ id: a.id }} className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-semibold hover:bg-secondary">
@@ -127,6 +130,6 @@ function AjuanListPage() {
           </div>
         </div>
       </div>
-    </AppLayout>
+    </>
   );
 }

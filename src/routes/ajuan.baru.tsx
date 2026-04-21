@@ -1,45 +1,73 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
-import { AppLayout } from "@/components/AppLayout";
-import { PageHeader, Toast } from "@/components/PageHeader";
+import { PageHeader } from "@/components/PageHeader";
 import { instansiList, formatRupiah } from "@/lib/dummy-data";
-import { ArrowLeft, Plus, Trash2, Upload, X, Save, Send } from "lucide-react";
+import { useCreateAjuan } from "@/lib/queries";
+import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/integrations/supabase/client";
+import { ArrowLeft, Plus, Trash2, Upload, X, Send, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/ajuan/baru")({
   head: () => ({ meta: [{ title: "Buat Ajuan Baru — E-Budgeting Pesantren" }] }),
   component: BuatAjuanPage,
 });
 
-interface Item { id: string; nama: string; qty: number; harga: number }
+interface Item { id: string; nama: string; qty: number; satuan: string; harga: number }
 
 function BuatAjuanPage() {
   const router = useRouter();
-  const [pengaju, setPengaju] = useState("");
-  const [instansi, setInstansi] = useState(instansiList[0]);
+  const { user, profile } = useAuth();
+  const createAjuan = useCreateAjuan();
+  const [instansi, setInstansi] = useState(profile?.instansi || instansiList[0]);
   const [judul, setJudul] = useState("");
   const [rencana, setRencana] = useState("");
-  const [items, setItems] = useState<Item[]>([{ id: "1", nama: "", qty: 1, harga: 0 }]);
-  const [bukti, setBukti] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [items, setItems] = useState<Item[]>([{ id: "1", nama: "", qty: 1, satuan: "pcs", harga: 0 }]);
+  const [buktiPreview, setBuktiPreview] = useState<string | null>(null);
+  const [buktiFile, setBuktiFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const total = items.reduce((s, i) => s + i.qty * i.harga, 0);
 
-  const addItem = () => setItems(prev => [...prev, { id: String(Date.now()), nama: "", qty: 1, harga: 0 }]);
+  const addItem = () => setItems(prev => [...prev, { id: String(Date.now()), nama: "", qty: 1, satuan: "pcs", harga: 0 }]);
   const removeItem = (id: string) => setItems(prev => prev.length > 1 ? prev.filter(i => i.id !== id) : prev);
   const updateItem = (id: string, patch: Partial<Item>) => setItems(prev => prev.map(i => i.id === id ? { ...i, ...patch } : i));
 
   const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setBukti(URL.createObjectURL(f));
+    if (f) { setBuktiFile(f); setBuktiPreview(URL.createObjectURL(f)); }
   };
 
-  const submit = (asDraft: boolean) => {
-    setToast(asDraft ? "Ajuan disimpan sebagai draft" : "Ajuan berhasil dikirim untuk persetujuan");
-    setTimeout(() => router.navigate({ to: "/ajuan" }), 1200);
+  const submit = async () => {
+    if (!judul.trim() || !rencana.trim()) { toast.error("Lengkapi judul dan rencana penggunaan"); return; }
+    if (items.some(i => !i.nama.trim() || i.qty <= 0 || i.harga <= 0)) { toast.error("Lengkapi semua item dengan benar"); return; }
+    if (!user) { toast.error("Sesi tidak valid"); return; }
+
+    setUploading(true);
+    let bukti_url: string | null = null;
+    if (buktiFile) {
+      const path = `${user.id}/${Date.now()}-${buktiFile.name}`;
+      const { error: upErr } = await supabase.storage.from("bukti").upload(path, buktiFile);
+      if (upErr) { toast.error("Upload bukti gagal", { description: upErr.message }); setUploading(false); return; }
+      const { data: urlData } = supabase.storage.from("bukti").getPublicUrl(path);
+      bukti_url = urlData.publicUrl;
+    }
+
+    try {
+      await createAjuan.mutateAsync({
+        judul, instansi, rencana_penggunaan: rencana,
+        items: items.map(({ nama, qty, satuan, harga }) => ({ nama_item: nama, qty, satuan, harga })),
+        bukti_url,
+      });
+      toast.success("Ajuan berhasil dikirim");
+      router.navigate({ to: "/ajuan" });
+    } catch (e) {
+      toast.error("Gagal menyimpan ajuan", { description: (e as Error).message });
+    } finally { setUploading(false); }
   };
 
   return (
-    <AppLayout>
+    <>
       <Link to="/ajuan" className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Kembali ke daftar ajuan
       </Link>
@@ -49,10 +77,10 @@ function BuatAjuanPage() {
         <div className="space-y-6 lg:col-span-2">
           <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <h3 className="font-semibold">Informasi Pengaju</h3>
-            <p className="mb-4 text-xs text-muted-foreground">Data pengaju dan unit/bidang yang mengajukan anggaran.</p>
+            <p className="mb-4 text-xs text-muted-foreground">Data pengaju otomatis diisi dari profil Anda.</p>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Nama Pengaju">
-                <input value={pengaju} onChange={e => setPengaju(e.target.value)} placeholder="Contoh: Ust. Ahmad Fauzi" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
+                <input value={profile?.nama_lengkap ?? ""} disabled className="h-10 w-full rounded-lg border border-input bg-muted px-3 text-sm" />
               </Field>
               <Field label="Instansi / Bidang">
                 <select value={instansi} onChange={e => setInstansi(e.target.value)} className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20">
@@ -85,8 +113,9 @@ function BuatAjuanPage() {
                   <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <th className="pb-2 font-semibold">Nama Item</th>
                     <th className="pb-2 font-semibold w-20">Qty</th>
-                    <th className="pb-2 font-semibold w-44">Harga Satuan</th>
-                    <th className="pb-2 font-semibold w-44 text-right">Subtotal</th>
+                    <th className="pb-2 font-semibold w-24">Satuan</th>
+                    <th className="pb-2 font-semibold w-40">Harga Satuan</th>
+                    <th className="pb-2 font-semibold w-40 text-right">Subtotal</th>
                     <th className="pb-2 w-10"></th>
                   </tr>
                 </thead>
@@ -95,6 +124,7 @@ function BuatAjuanPage() {
                     <tr key={it.id}>
                       <td className="pr-2 py-1.5"><input value={it.nama} onChange={e => updateItem(it.id, { nama: e.target.value })} placeholder="Nama barang/jasa" className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus:border-ring" /></td>
                       <td className="pr-2 py-1.5"><input type="number" min={1} value={it.qty} onChange={e => updateItem(it.id, { qty: Number(e.target.value) || 0 })} className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus:border-ring" /></td>
+                      <td className="pr-2 py-1.5"><input value={it.satuan} onChange={e => updateItem(it.id, { satuan: e.target.value })} placeholder="pcs" className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus:border-ring" /></td>
                       <td className="pr-2 py-1.5"><input type="number" min={0} value={it.harga} onChange={e => updateItem(it.id, { harga: Number(e.target.value) || 0 })} className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus:border-ring" /></td>
                       <td className="pr-2 py-1.5 text-right font-semibold tabular-nums">{formatRupiah(it.qty * it.harga)}</td>
                       <td className="py-1.5"><button onClick={() => removeItem(it.id)} className="flex h-8 w-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></button></td>
@@ -103,7 +133,7 @@ function BuatAjuanPage() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-border">
-                    <td colSpan={3} className="pt-3 text-right text-sm font-semibold text-muted-foreground">Total Anggaran</td>
+                    <td colSpan={4} className="pt-3 text-right text-sm font-semibold text-muted-foreground">Total Anggaran</td>
                     <td className="pt-3 text-right text-lg font-bold text-primary">{formatRupiah(total)}</td>
                     <td></td>
                   </tr>
@@ -115,10 +145,10 @@ function BuatAjuanPage() {
           <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <h3 className="font-semibold">Bukti / Dokumen Pendukung</h3>
             <p className="mb-4 text-xs text-muted-foreground">Unggah penawaran harga, RAB, atau dokumen pendukung lainnya.</p>
-            {bukti ? (
+            {buktiPreview ? (
               <div className="relative inline-block">
-                <img src={bukti} alt="Bukti" className="max-h-48 rounded-lg border border-border" />
-                <button onClick={() => setBukti(null)} className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-soft"><X className="h-4 w-4" /></button>
+                <img src={buktiPreview} alt="Bukti" className="max-h-48 rounded-lg border border-border" />
+                <button onClick={() => { setBuktiPreview(null); setBuktiFile(null); }} className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-soft"><X className="h-4 w-4" /></button>
               </div>
             ) : (
               <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-secondary/30 p-8 text-center transition-colors hover:bg-secondary/60">
@@ -135,7 +165,7 @@ function BuatAjuanPage() {
           <div className="sticky top-20 rounded-2xl border border-border bg-card p-6 shadow-soft">
             <h3 className="font-semibold">Ringkasan</h3>
             <dl className="mt-4 space-y-2.5 text-sm">
-              <Row label="Pengaju" value={pengaju || "—"} />
+              <Row label="Pengaju" value={profile?.nama_lengkap ?? "—"} />
               <Row label="Instansi" value={instansi} />
               <Row label="Jumlah item" value={String(items.length)} />
               <div className="my-3 border-t border-border" />
@@ -145,14 +175,15 @@ function BuatAjuanPage() {
               </div>
             </dl>
             <div className="mt-5 flex flex-col gap-2">
-              <button onClick={() => submit(false)} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90"><Send className="h-4 w-4" /> Kirim Ajuan</button>
-              <button onClick={() => submit(true)} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold hover:bg-secondary"><Save className="h-4 w-4" /> Simpan sebagai Draft</button>
+              <button onClick={submit} disabled={uploading || createAjuan.isPending} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
+                {(uploading || createAjuan.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Kirim Ajuan
+              </button>
             </div>
           </div>
         </aside>
       </div>
-      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-    </AppLayout>
+    </>
   );
 }
 
