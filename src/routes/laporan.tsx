@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { AppLayout } from "@/components/AppLayout";
+import { useState, useMemo } from "react";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
-import { ajuanData, formatRupiah, grafikBulanan, statusBadgeClass, statusLabel, type StatusAjuan } from "@/lib/dummy-data";
+import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/dummy-data";
+import { useAjuanList, type AjuanStatus } from "@/lib/queries";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
 import { Download, FileText, FileSpreadsheet, FileType2, ChevronDown, Calendar } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export const Route = createFileRoute("/laporan")({
   head: () => ({ meta: [{ title: "Laporan Keuangan — E-Budgeting Pesantren" }] }),
@@ -14,17 +15,36 @@ export const Route = createFileRoute("/laporan")({
 function LaporanPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [from, setFrom] = useState("2025-01-01");
-  const [to, setTo] = useState("2025-04-30");
-  const [status, setStatus] = useState<"all" | StatusAjuan>("all");
+  const [to, setTo] = useState("2025-12-31");
+  const [status, setStatus] = useState<"all" | AjuanStatus>("all");
+  const { data: ajuanData = [] } = useAjuanList();
 
-  const filtered = ajuanData.filter(a => status === "all" || a.status === status);
-  const total = filtered.reduce((s, a) => s + a.total, 0);
+  const filtered = useMemo(() => ajuanData.filter(a => {
+    if (status !== "all" && a.status !== status) return false;
+    const d = new Date(a.created_at);
+    if (from && d < new Date(from)) return false;
+    if (to && d > new Date(to + "T23:59:59")) return false;
+    return true;
+  }), [ajuanData, status, from, to]);
+  const total = filtered.reduce((s, a) => s + Number(a.total), 0);
+
+  const grafik = useMemo(() => {
+    const map = new Map<string, { bulan: string; ajuan: number; disetujui: number; dicairkan: number }>();
+    ajuanData.forEach(a => {
+      const d = new Date(a.created_at);
+      const key = d.toLocaleDateString("id-ID", { month: "short" });
+      const cur = map.get(key) ?? { bulan: key, ajuan: 0, disetujui: 0, dicairkan: 0 };
+      cur.ajuan += 1;
+      if (a.status === "disetujui") cur.disetujui += 1;
+      if (a.status === "dicairkan") cur.dicairkan += 1;
+      map.set(key, cur);
+    });
+    return Array.from(map.values());
+  }, [ajuanData]);
 
   return (
-    <AppLayout>
-      <PageHeader
-        title="Laporan Keuangan"
-        description="Rekap dan analisa pemakaian anggaran pesantren"
+    <>
+      <PageHeader title="Laporan Keuangan" description="Rekap dan analisa pemakaian anggaran pesantren"
         actions={
           <div className="relative">
             <button onClick={() => setExportOpen(v => !v)} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90">
@@ -51,23 +71,22 @@ function LaporanPage() {
       </div>
 
       <div className="mb-6 rounded-2xl border border-border bg-card p-5 shadow-soft">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-semibold">Realisasi Anggaran Bulanan</h3>
-          <p className="text-xs text-muted-foreground">Periode 7 bulan terakhir</p>
-        </div>
+        <h3 className="mb-4 font-semibold">Realisasi Anggaran Bulanan</h3>
         <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={grafikBulanan}>
-              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" vertical={false} />
-              <XAxis dataKey="bulan" tick={{ fontSize: 12, fill: "oklch(0.5 0.02 250)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "oklch(0.5 0.02 250)" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.01 240)", fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="ajuan" fill="oklch(0.85 0.03 240)" radius={[6, 6, 0, 0]} name="Ajuan" />
-              <Bar dataKey="disetujui" fill="oklch(0.58 0.15 162)" radius={[6, 6, 0, 0]} name="Disetujui" />
-              <Bar dataKey="dicairkan" fill="oklch(0.65 0.14 240)" radius={[6, 6, 0, 0]} name="Dicairkan" />
-            </BarChart>
-          </ResponsiveContainer>
+          {grafik.length === 0 ? <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Belum ada data</div> : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={grafik}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" vertical={false} />
+                <XAxis dataKey="bulan" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.01 240)", fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="ajuan" fill="oklch(0.85 0.03 240)" radius={[6, 6, 0, 0]} name="Ajuan" />
+                <Bar dataKey="disetujui" fill="oklch(0.58 0.15 162)" radius={[6, 6, 0, 0]} name="Disetujui" />
+                <Bar dataKey="dicairkan" fill="oklch(0.65 0.14 240)" radius={[6, 6, 0, 0]} name="Dicairkan" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
@@ -89,7 +108,7 @@ function LaporanPage() {
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</label>
-            <select value={status} onChange={e => setStatus(e.target.value as any)} className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring">
+            <select value={status} onChange={e => setStatus(e.target.value as "all" | AjuanStatus)} className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring">
               <option value="all">Semua status</option>
               <option value="menunggu">Menunggu</option>
               <option value="disetujui">Disetujui</option>
@@ -112,13 +131,15 @@ function LaporanPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(a => (
+              {filtered.length === 0 ? (
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">Tidak ada data sesuai filter.</td></tr>
+              ) : filtered.map(a => (
                 <tr key={a.id} className="border-b border-border last:border-0 hover:bg-secondary/40">
                   <td className="px-4 py-3 font-mono text-xs font-semibold">{a.kode}</td>
                   <td className="px-4 py-3 font-medium">{a.judul}</td>
                   <td className="px-4 py-3 text-muted-foreground">{a.instansi}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{a.tanggal}</td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatRupiah(a.total)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{new Date(a.created_at).toLocaleDateString("id-ID")}</td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatRupiah(Number(a.total))}</td>
                   <td className="px-4 py-3"><StatusBadge className={statusBadgeClass[a.status]}>{statusLabel[a.status]}</StatusBadge></td>
                 </tr>
               ))}
@@ -133,7 +154,7 @@ function LaporanPage() {
           </table>
         </div>
       </div>
-    </AppLayout>
+    </>
   );
 }
 
@@ -145,7 +166,7 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-function ExportItem({ icon: Icon, label }: { icon: any; label: string }) {
+function ExportItem({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <button className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm hover:bg-secondary">
       <Icon className="h-4 w-4 text-primary" /> {label}

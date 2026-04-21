@@ -1,20 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { AppLayout } from "@/components/AppLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { Toggle } from "./pengguna";
-import { notifikasiData, type Notifikasi } from "@/lib/dummy-data";
+import { useNotifikasi, useMarkNotifRead } from "@/lib/queries";
 import { Bell, CheckCircle2, AlertTriangle, Info, XCircle, CheckCheck } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export const Route = createFileRoute("/notifikasi")({
   head: () => ({ meta: [{ title: "Notifikasi — E-Budgeting Pesantren" }] }),
   component: NotifikasiPage,
 });
 
-const iconByJenis: Record<Notifikasi["jenis"], { icon: any; cls: string }> = {
+const iconByJenis: Record<string, { icon: LucideIcon; cls: string }> = {
   info: { icon: Info, cls: "text-info bg-info/10" },
-  success: { icon: CheckCircle2, cls: "text-success bg-success/10" },
-  warning: { icon: AlertTriangle, cls: "text-warning-foreground bg-warning/15" },
+  sukses: { icon: CheckCircle2, cls: "text-success bg-success/10" },
+  peringatan: { icon: AlertTriangle, cls: "text-warning-foreground bg-warning/15" },
   error: { icon: XCircle, cls: "text-destructive bg-destructive/10" },
 };
 
@@ -23,25 +23,27 @@ const settings = [
   { key: "email_status", label: "Email — Perubahan status ajuan", desc: "Notifikasi email saat ajuan disetujui, ditolak, atau dicairkan" },
   { key: "push_realtime", label: "Push — Notifikasi real-time", desc: "Tampilkan notifikasi push di browser" },
   { key: "wa_pencairan", label: "WhatsApp — Konfirmasi pencairan", desc: "Kirim notifikasi WA saat dana telah dicairkan" },
-  { key: "digest", label: "Digest harian", desc: "Ringkasan aktivitas harian dikirim setiap pagi" },
 ];
 
 function NotifikasiPage() {
   const [tab, setTab] = useState<"list" | "settings">("list");
-  const [items, setItems] = useState(notifikasiData);
-  const [toggles, setToggles] = useState<Record<string, boolean>>({ email_ajuan: true, email_status: true, push_realtime: true, wa_pencairan: false, digest: true });
+  const { data: items = [] } = useNotifikasi();
+  const markRead = useMarkNotifRead();
+  const [toggles, setToggles] = useState<Record<string, boolean>>({ email_ajuan: true, email_status: true, push_realtime: true, wa_pencairan: false });
   const unread = items.filter(n => !n.dibaca).length;
 
-  const markAll = () => setItems(prev => prev.map(n => ({ ...n, dibaca: true })));
+  const markAll = async () => {
+    for (const n of items.filter(x => !x.dibaca)) await markRead.mutateAsync(n.id);
+  };
 
   return (
-    <AppLayout>
+    <>
       <PageHeader title="Notifikasi" description="Kelola dan atur preferensi notifikasi Anda"
-        actions={tab === "list" && unread > 0 && (
+        actions={tab === "list" && unread > 0 ? (
           <button onClick={markAll} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold hover:bg-secondary">
             <CheckCheck className="h-4 w-4" /> Tandai semua dibaca
           </button>
-        )}
+        ) : undefined}
       />
 
       <div className="mb-4 flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-soft">
@@ -61,17 +63,19 @@ function NotifikasiPage() {
           ) : (
             <ul className="divide-y divide-border">
               {items.map(n => {
-                const { icon: Icon, cls } = iconByJenis[n.jenis];
+                const meta = iconByJenis[n.tipe] ?? iconByJenis.info;
+                const Icon = meta.icon;
                 return (
-                  <li key={n.id} className={`flex gap-4 p-4 transition-colors hover:bg-secondary/40 ${!n.dibaca ? "bg-primary-soft/20" : ""}`}>
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${cls}`}><Icon className="h-5 w-5" /></div>
+                  <li key={n.id} className={`flex gap-4 p-4 transition-colors hover:bg-secondary/40 ${!n.dibaca ? "bg-primary-soft/20" : ""}`}
+                    onClick={() => !n.dibaca && markRead.mutate(n.id)}>
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${meta.cls}`}><Icon className="h-5 w-5" /></div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start gap-2">
                         <p className="font-semibold">{n.judul}</p>
                         {!n.dibaca && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />}
                       </div>
                       <p className="text-sm text-muted-foreground">{n.pesan}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{n.waktu}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{new Date(n.created_at).toLocaleString("id-ID")}</p>
                     </div>
                   </li>
                 );
@@ -96,6 +100,6 @@ function NotifikasiPage() {
           </ul>
         </div>
       )}
-    </AppLayout>
+    </>
   );
 }
