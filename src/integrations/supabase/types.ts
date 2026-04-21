@@ -14,16 +14,316 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ajuan_anggaran: {
+        Row: {
+          bukti_url: string | null
+          catatan: string | null
+          created_at: string
+          id: string
+          instansi: string
+          judul: string
+          kode: string
+          pengaju_id: string
+          rencana_penggunaan: string
+          status: Database["public"]["Enums"]["ajuan_status"]
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          bukti_url?: string | null
+          catatan?: string | null
+          created_at?: string
+          id?: string
+          instansi: string
+          judul: string
+          kode: string
+          pengaju_id: string
+          rencana_penggunaan: string
+          status?: Database["public"]["Enums"]["ajuan_status"]
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          bukti_url?: string | null
+          catatan?: string | null
+          created_at?: string
+          id?: string
+          instansi?: string
+          judul?: string
+          kode?: string
+          pengaju_id?: string
+          rencana_penggunaan?: string
+          status?: Database["public"]["Enums"]["ajuan_status"]
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ajuan_items: {
+        Row: {
+          ajuan_id: string
+          created_at: string
+          harga: number
+          id: string
+          nama_item: string
+          qty: number
+          satuan: string | null
+          subtotal: number | null
+        }
+        Insert: {
+          ajuan_id: string
+          created_at?: string
+          harga?: number
+          id?: string
+          nama_item: string
+          qty?: number
+          satuan?: string | null
+          subtotal?: number | null
+        }
+        Update: {
+          ajuan_id?: string
+          created_at?: string
+          harga?: number
+          id?: string
+          nama_item?: string
+          qty?: number
+          satuan?: string | null
+          subtotal?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ajuan_items_ajuan_id_fkey"
+            columns: ["ajuan_id"]
+            isOneToOne: false
+            referencedRelation: "ajuan_anggaran"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      approval_history: {
+        Row: {
+          ajuan_id: string
+          aksi: string
+          approver_id: string
+          catatan: string | null
+          created_at: string
+          id: string
+        }
+        Insert: {
+          ajuan_id: string
+          aksi: string
+          approver_id: string
+          catatan?: string | null
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          ajuan_id?: string
+          aksi?: string
+          approver_id?: string
+          catatan?: string | null
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_history_ajuan_id_fkey"
+            columns: ["ajuan_id"]
+            isOneToOne: false
+            referencedRelation: "ajuan_anggaran"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_log: {
+        Row: {
+          aksi: string
+          created_at: string
+          detail: Json | null
+          id: string
+          ip_address: string | null
+          modul: string
+          user_id: string | null
+        }
+        Insert: {
+          aksi: string
+          created_at?: string
+          detail?: Json | null
+          id?: string
+          ip_address?: string | null
+          modul: string
+          user_id?: string | null
+        }
+        Update: {
+          aksi?: string
+          created_at?: string
+          detail?: Json | null
+          id?: string
+          ip_address?: string | null
+          modul?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      notifikasi: {
+        Row: {
+          created_at: string
+          dibaca: boolean
+          id: string
+          judul: string
+          link: string | null
+          pesan: string
+          tipe: Database["public"]["Enums"]["notif_type"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dibaca?: boolean
+          id?: string
+          judul: string
+          link?: string | null
+          pesan: string
+          tipe?: Database["public"]["Enums"]["notif_type"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dibaca?: boolean
+          id?: string
+          judul?: string
+          link?: string | null
+          pesan?: string
+          tipe?: Database["public"]["Enums"]["notif_type"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pencairan: {
+        Row: {
+          ajuan_id: string
+          bank: string
+          bukti_url: string | null
+          created_at: string
+          diproses_oleh: string | null
+          id: string
+          jumlah: number
+          nama_pemilik: string
+          no_rekening: string
+          status: Database["public"]["Enums"]["pencairan_status"]
+          updated_at: string
+        }
+        Insert: {
+          ajuan_id: string
+          bank: string
+          bukti_url?: string | null
+          created_at?: string
+          diproses_oleh?: string | null
+          id?: string
+          jumlah: number
+          nama_pemilik: string
+          no_rekening: string
+          status?: Database["public"]["Enums"]["pencairan_status"]
+          updated_at?: string
+        }
+        Update: {
+          ajuan_id?: string
+          bank?: string
+          bukti_url?: string | null
+          created_at?: string
+          diproses_oleh?: string | null
+          id?: string
+          jumlah?: number
+          nama_pemilik?: string
+          no_rekening?: string
+          status?: Database["public"]["Enums"]["pencairan_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pencairan_ajuan_id_fkey"
+            columns: ["ajuan_id"]
+            isOneToOne: false
+            referencedRelation: "ajuan_anggaran"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          foto_url: string | null
+          id: string
+          instansi: string | null
+          jabatan: string | null
+          nama_lengkap: string
+          no_hp: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          foto_url?: string | null
+          id: string
+          instansi?: string | null
+          jabatan?: string | null
+          nama_lengkap: string
+          no_hp?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          foto_url?: string | null
+          id?: string
+          instansi?: string | null
+          jabatan?: string | null
+          nama_lengkap?: string
+          no_hp?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      ajuan_status: "draft" | "menunggu" | "disetujui" | "ditolak" | "dicairkan"
+      app_role: "admin" | "pengaju" | "approver"
+      notif_type: "info" | "sukses" | "peringatan" | "error"
+      pencairan_status: "menunggu" | "diproses" | "selesai"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +450,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      ajuan_status: ["draft", "menunggu", "disetujui", "ditolak", "dicairkan"],
+      app_role: ["admin", "pengaju", "approver"],
+      notif_type: ["info", "sukses", "peringatan", "error"],
+      pencairan_status: ["menunggu", "diproses", "selesai"],
+    },
   },
 } as const
