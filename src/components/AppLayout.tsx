@@ -4,7 +4,8 @@ import {
   Bell, ScrollText, Settings, Search, ChevronDown, LogOut, User, Menu, X, Building2,
 } from "lucide-react";
 import { useState } from "react";
-import { notifikasiData } from "@/lib/dummy-data";
+import { useAuth } from "@/lib/auth-context";
+import { useNotifikasi } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 const menu = [
@@ -24,7 +25,11 @@ export function AppLayout({ children }: { children?: React.ReactNode }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
   const router = useRouter();
-  const unread = notifikasiData.filter(n => !n.dibaca).length;
+  const { user, profile, role, signOut } = useAuth();
+  const { data: notifList = [] } = useNotifikasi();
+  const unread = notifList.filter((n) => !n.dibaca).length;
+  const initials = (profile?.nama_lengkap ?? user?.email ?? "U")
+    .split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
 
   const isActive = (to: string, exact?: boolean) =>
     exact ? location.pathname === to : location.pathname === to || location.pathname.startsWith(to + "/");
@@ -111,10 +116,10 @@ export function AppLayout({ children }: { children?: React.ReactNode }) {
               onClick={() => setProfileOpen(v => !v)}
               className="flex items-center gap-2 rounded-lg p-1.5 pr-2 hover:bg-secondary transition-colors"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">KA</div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">{initials}</div>
               <div className="hidden text-left md:block">
-                <p className="text-sm font-semibold leading-tight">KH. Abdurrahman</p>
-                <p className="text-[11px] leading-tight text-muted-foreground">Pimpinan Pesantren</p>
+                <p className="text-sm font-semibold leading-tight">{profile?.nama_lengkap ?? "Pengguna"}</p>
+                <p className="text-[11px] leading-tight text-muted-foreground capitalize">{role ?? "—"}</p>
               </div>
               <ChevronDown className="hidden h-4 w-4 text-muted-foreground md:block" />
             </button>
@@ -123,13 +128,13 @@ export function AppLayout({ children }: { children?: React.ReactNode }) {
                 <div className="fixed inset-0 z-10" onClick={() => setProfileOpen(false)} />
                 <div className="absolute right-0 top-full z-20 mt-2 w-56 animate-fade-in rounded-xl border border-border bg-popover p-1.5 shadow-elevated">
                   <div className="px-3 py-2.5 border-b border-border mb-1">
-                    <p className="text-sm font-semibold">KH. Abdurrahman</p>
-                    <p className="text-xs text-muted-foreground">kyai@raudhatussalam.id</p>
+                    <p className="text-sm font-semibold">{profile?.nama_lengkap ?? "Pengguna"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                   </div>
                   <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-secondary"><User className="h-4 w-4" /> Profil Saya</button>
                   <button onClick={() => { setProfileOpen(false); router.navigate({ to: "/pengaturan" }); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-secondary"><Settings className="h-4 w-4" /> Pengaturan</button>
                   <div className="my-1 border-t border-border" />
-                  <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"><LogOut className="h-4 w-4" /> Keluar</button>
+                  <button onClick={async () => { await signOut(); router.navigate({ to: "/auth" }); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"><LogOut className="h-4 w-4" /> Keluar</button>
                 </div>
               </>
             )}
