@@ -1,11 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { AppLayout } from "@/components/AppLayout";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
-import { ajuanData, formatRupiah, statusBadgeClass, statusLabel } from "@/lib/dummy-data";
+import { ajuanData, formatRupiah, statusBadgeClass, statusLabel, type Ajuan } from "@/lib/dummy-data";
 import { ArrowLeft, Printer, Download, Calendar, User, Building2, FileText, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/ajuan/$id")({
-  loader: ({ params }) => {
+  loader: ({ params }): { ajuan: Ajuan } => {
     const ajuan = ajuanData.find(a => a.id === params.id);
     if (!ajuan) throw notFound();
     return { ajuan };
