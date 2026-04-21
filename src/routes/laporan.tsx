@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
 import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
 import { useAjuanList, type AjuanStatus } from "@/lib/queries";
@@ -17,6 +17,8 @@ function LaporanPage() {
   const [from, setFrom] = useState("2025-01-01");
   const [to, setTo] = useState("2025-12-31");
   const [status, setStatus] = useState<"all" | AjuanStatus>("all");
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
   const { data: ajuanData = [] } = useAjuanList();
 
   const filtered = useMemo(() => ajuanData.filter(a => {
@@ -74,18 +76,20 @@ function LaporanPage() {
         <h3 className="mb-4 font-semibold">Realisasi Anggaran Bulanan</h3>
         <div className="h-72 w-full min-h-[300px]">
           {grafik.length === 0 ? <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Belum ada data</div> : (
-            <ResponsiveContainer width="100%" height="100%" aspect={3}>
-              <BarChart data={grafik}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" vertical={false} />
-                <XAxis dataKey="bulan" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.01 240)", fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="ajuan" fill="oklch(0.85 0.03 240)" radius={[6, 6, 0, 0]} name="Ajuan" />
-                <Bar dataKey="disetujui" fill="oklch(0.58 0.15 162)" radius={[6, 6, 0, 0]} name="Disetujui" />
-                <Bar dataKey="dicairkan" fill="oklch(0.65 0.14 240)" radius={[6, 6, 0, 0]} name="Dicairkan" />
-              </BarChart>
-            </ResponsiveContainer>
+            isMounted && (
+              <ResponsiveContainer width="100%" height="100%" aspect={3}>
+                <BarChart data={grafik}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" vertical={false} />
+                  <XAxis dataKey="bulan" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.01 240)", fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="ajuan" fill="oklch(0.85 0.03 240)" radius={[6, 6, 0, 0]} name="Ajuan" />
+                  <Bar dataKey="disetujui" fill="oklch(0.58 0.15 162)" radius={[6, 6, 0, 0]} name="Disetujui" />
+                  <Bar dataKey="dicairkan" fill="oklch(0.65 0.14 240)" radius={[6, 6, 0, 0]} name="Dicairkan" />
+                </BarChart>
+              </ResponsiveContainer>
+            )
           )}
         </div>
       </div>

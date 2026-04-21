@@ -175,7 +175,7 @@ function DashboardPage() {
             {grafikInstansi.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Belum ada data</div>
             ) : (
-              {isMounted && (
+              isMounted && (
                 <ResponsiveContainer width="100%" height="100%" aspect={1.2}>
                   <BarChart data={grafikInstansi} layout="vertical" margin={{ left: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
@@ -185,7 +185,7 @@ function DashboardPage() {
                     <Bar dataKey="nilai" fill="#10b981" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              )}
+              )
             )}
           </div>
         </div>
