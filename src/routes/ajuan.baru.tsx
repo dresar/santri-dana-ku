@@ -1,10 +1,10 @@
+import * as React from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { instansiList, formatRupiah } from "@/lib/dummy-data";
+import { instansiList, formatRupiah } from "@/lib/utils";
 import { useCreateAjuan } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
-import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Plus, Trash2, Upload, X, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,10 +22,9 @@ function BuatAjuanPage() {
   const [instansi, setInstansi] = useState(profile?.instansi || instansiList[0]);
   const [judul, setJudul] = useState("");
   const [rencana, setRencana] = useState("");
+  const [pengajuNama, setPengajuNama] = useState(profile?.nama_lengkap || "");
   const [items, setItems] = useState<Item[]>([{ id: "1", nama: "", qty: 1, satuan: "pcs", harga: 0 }]);
-  const [buktiPreview, setBuktiPreview] = useState<string | null>(null);
-  const [buktiFile, setBuktiFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const total = items.reduce((s, i) => s + i.qty * i.harga, 0);
 
@@ -33,153 +32,189 @@ function BuatAjuanPage() {
   const removeItem = (id: string) => setItems(prev => prev.length > 1 ? prev.filter(i => i.id !== id) : prev);
   const updateItem = (id: string, patch: Partial<Item>) => setItems(prev => prev.map(i => i.id === id ? { ...i, ...patch } : i));
 
-  const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) { setBuktiFile(f); setBuktiPreview(URL.createObjectURL(f)); }
-  };
-
   const submit = async () => {
+    if (!pengajuNama.trim()) { toast.error("Masukkan nama pengaju"); return; }
     if (!judul.trim() || !rencana.trim()) { toast.error("Lengkapi judul dan rencana penggunaan"); return; }
-    if (items.some(i => !i.nama.trim() || i.qty <= 0 || i.harga <= 0)) { toast.error("Lengkapi semua item dengan benar"); return; }
-    if (!user) { toast.error("Sesi tidak valid"); return; }
-
-    setUploading(true);
-    let bukti_url: string | null = null;
-    if (buktiFile) {
-      const path = `${user.id}/${Date.now()}-${buktiFile.name}`;
-      const { error: upErr } = await supabase.storage.from("bukti").upload(path, buktiFile);
-      if (upErr) { toast.error("Upload bukti gagal", { description: upErr.message }); setUploading(false); return; }
-      const { data: urlData } = supabase.storage.from("bukti").getPublicUrl(path);
-      bukti_url = urlData.publicUrl;
-    }
+    if (items.some(i => !i.nama.trim() || i.qty <= 0 || i.harga <= 0)) { toast.error("Lengkapi semua rincian belanja"); return; }
 
     try {
       await createAjuan.mutateAsync({
-        judul, instansi, rencana_penggunaan: rencana,
+        judul, 
+        instansi, 
+        rencana_penggunaan: rencana,
+        pengaju_nama: pengajuNama,
         items: items.map(({ nama, qty, satuan, harga }) => ({ nama_item: nama, qty, satuan, harga })),
-        bukti_url,
       });
-      toast.success("Ajuan berhasil dikirim");
-      router.navigate({ to: "/ajuan" });
+      toast.success("Ajuan Berhasil Dikirim");
+      if (!user) {
+        setSubmitted(true);
+      } else {
+        router.navigate({ to: "/ajuan" });
+      }
     } catch (e) {
-      toast.error("Gagal menyimpan ajuan", { description: (e as Error).message });
-    } finally { setUploading(false); }
+      toast.error("Gagal mengirim ajuan");
+    }
   };
+
+  if (submitted) {
+    return (
+      <div className="py-12 text-center animate-fade-in">
+        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-success/20 text-success shadow-soft">
+          <Send className="h-10 w-10" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900">Alhamdulillah!</h2>
+        <p className="mt-2 text-slate-600">
+          Ajuan anggaran Anda telah berhasil dikirim ke sistem.<br />
+          Admin akan segera meninjau dan memproses ajuan tersebut.
+        </p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="mt-8 rounded-xl bg-primary px-6 py-3 font-bold text-primary-foreground shadow-soft hover:bg-primary/90 transition-all hover:scale-105"
+        >
+          Buat Ajuan Lagi
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
-      <Link to="/ajuan" className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Kembali ke daftar ajuan
-      </Link>
-      <PageHeader title="Buat Ajuan Anggaran Baru" description="Lengkapi formulir di bawah dengan rincian kebutuhan anggaran" />
+      {user && (
+        <Link to="/ajuan" className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" /> Kembali ke daftar ajuan
+        </Link>
+      )}
+      <div className="mb-8 border-b border-slate-100 pb-2">
+        <h2 className="text-xl font-bold text-slate-800">Formulir Pengajuan Anggaran</h2>
+        <p className="text-sm text-slate-500">Mohon isi data di bawah dengan jujur dan lengkap untuk keperluan audit.</p>
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-            <h3 className="font-semibold">Informasi Pengaju</h3>
-            <p className="mb-4 text-xs text-muted-foreground">Data pengaju otomatis diisi dari profil Anda.</p>
-            <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="space-y-8 lg:col-span-2">
+          <section className="space-y-6">
+            <div className="grid gap-5 md:grid-cols-2">
               <Field label="Nama Pengaju">
-                <input value={profile?.nama_lengkap ?? ""} disabled className="h-10 w-full rounded-lg border border-input bg-muted px-3 text-sm" />
+                <input 
+                  value={pengajuNama} 
+                  onChange={e => setPengajuNama(e.target.value)} 
+                  placeholder="Nama lengkap Anda"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10" 
+                />
               </Field>
               <Field label="Instansi / Bidang">
-                <select value={instansi} onChange={e => setInstansi(e.target.value)} className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20">
+                <select 
+                  value={instansi} 
+                  onChange={e => setInstansi(e.target.value)} 
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10 appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236b7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22m6%208%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px_20px] bg-[right:10px_center] bg-no-repeat"
+                >
                   {instansiList.map(i => <option key={i}>{i}</option>)}
                 </select>
               </Field>
-              <Field label="Judul Ajuan" full>
-                <input value={judul} onChange={e => setJudul(e.target.value)} placeholder="Judul singkat ajuan" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
+              <Field label="Judul Penggunaan Dana" full>
+                <input 
+                  value={judul} 
+                  onChange={e => setJudul(e.target.value)} 
+                  placeholder="Contoh: Pembelian Kitab Santri Baru" 
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10" 
+                />
               </Field>
-              <Field label="Rencana Penggunaan" full>
-                <textarea value={rencana} onChange={e => setRencana(e.target.value)} rows={3} placeholder="Jelaskan rencana penggunaan anggaran..." className="w-full rounded-lg border border-input bg-background p-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
+              <Field label="Rencana & Tujuan Penggunaan" full>
+                <textarea 
+                  value={rencana} 
+                  onChange={e => setRencana(e.target.value)} 
+                  rows={4} 
+                  placeholder="Jelaskan secara rinci untuk apa anggaran ini digunakan..." 
+                  className="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10" 
+                />
               </Field>
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+          <section>
             <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold">Rincian Belanja</h3>
-                <p className="text-xs text-muted-foreground">Tambahkan setiap item dengan jumlah dan harga satuan.</p>
-              </div>
-              <button onClick={addItem} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90">
-                <Plus className="h-4 w-4" /> Tambah
+              <h3 className="text-lg font-bold text-slate-800">Rincian Estimasi Biaya</h3>
+              <button 
+                onClick={addItem} 
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border-2 border-primary/20 bg-primary/5 px-4 text-xs font-bold text-primary hover:bg-primary/10 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Tambah Baris
               </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="pb-2 font-semibold">Nama Item</th>
-                    <th className="pb-2 font-semibold w-20">Qty</th>
-                    <th className="pb-2 font-semibold w-24">Satuan</th>
-                    <th className="pb-2 font-semibold w-40">Harga Satuan</th>
-                    <th className="pb-2 font-semibold w-40 text-right">Subtotal</th>
-                    <th className="pb-2 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map(it => (
-                    <tr key={it.id}>
-                      <td className="pr-2 py-1.5"><input value={it.nama} onChange={e => updateItem(it.id, { nama: e.target.value })} placeholder="Nama barang/jasa" className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus:border-ring" /></td>
-                      <td className="pr-2 py-1.5"><input type="number" min={1} value={it.qty} onChange={e => updateItem(it.id, { qty: Number(e.target.value) || 0 })} className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus:border-ring" /></td>
-                      <td className="pr-2 py-1.5"><input value={it.satuan} onChange={e => updateItem(it.id, { satuan: e.target.value })} placeholder="pcs" className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus:border-ring" /></td>
-                      <td className="pr-2 py-1.5"><input type="number" min={0} value={it.harga} onChange={e => updateItem(it.id, { harga: Number(e.target.value) || 0 })} className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus:border-ring" /></td>
-                      <td className="pr-2 py-1.5 text-right font-semibold tabular-nums">{formatRupiah(it.qty * it.harga)}</td>
-                      <td className="py-1.5"><button onClick={() => removeItem(it.id)} className="flex h-8 w-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></button></td>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-1 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-wider text-slate-500">
+                      <th className="px-4 py-3 font-bold">Nama Kebutuhan</th>
+                      <th className="px-4 py-3 font-bold w-24">Jumlah</th>
+                      <th className="px-4 py-3 font-bold w-28">Satuan</th>
+                      <th className="px-4 py-3 font-bold w-44">Harga Satuan (Rp)</th>
+                      <th className="px-4 py-3 font-bold text-right">Total (Rp)</th>
+                      <th className="px-4 py-3 w-12"></th>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-border">
-                    <td colSpan={4} className="pt-3 text-right text-sm font-semibold text-muted-foreground">Total Anggaran</td>
-                    <td className="pt-3 text-right text-lg font-bold text-primary">{formatRupiah(total)}</td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-            <h3 className="font-semibold">Bukti / Dokumen Pendukung</h3>
-            <p className="mb-4 text-xs text-muted-foreground">Unggah penawaran harga, RAB, atau dokumen pendukung lainnya.</p>
-            {buktiPreview ? (
-              <div className="relative inline-block">
-                <img src={buktiPreview} alt="Bukti" className="max-h-48 rounded-lg border border-border" />
-                <button onClick={() => { setBuktiPreview(null); setBuktiFile(null); }} className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-soft"><X className="h-4 w-4" /></button>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {items.map(it => (
+                      <tr key={it.id} className="bg-white">
+                        <td className="px-2 py-3"><input value={it.nama} onChange={e => updateItem(it.id, { nama: e.target.value })} placeholder="Barang/Jasa" className="h-10 w-full rounded-lg bg-slate-50 px-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20" /></td>
+                        <td className="px-2 py-3"><input type="number" min={1} value={it.qty} onChange={e => updateItem(it.id, { qty: Number(e.target.value) || 0 })} className="h-10 w-full rounded-lg bg-slate-50 px-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 text-center" /></td>
+                        <td className="px-2 py-3"><input value={it.satuan} onChange={e => updateItem(it.id, { satuan: e.target.value })} placeholder="pcs" className="h-10 w-full rounded-lg bg-slate-50 px-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 text-center" /></td>
+                        <td className="px-2 py-3"><input type="number" min={0} value={it.harga} onChange={e => updateItem(it.id, { harga: Number(e.target.value) || 0 })} className="h-10 w-full rounded-lg bg-slate-50 px-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 text-right" /></td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-700 tabular-nums">{formatRupiah(it.qty * it.harga)}</td>
+                        <td className="px-2 py-3"><button onClick={() => removeItem(it.id)} className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-300 hover:bg-destructive/10 hover:text-destructive transition-colors"><Trash2 className="h-4 w-4" /></button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ) : (
-              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-secondary/30 p-8 text-center transition-colors hover:bg-secondary/60">
-                <Upload className="h-6 w-6 text-muted-foreground" />
-                <p className="text-sm font-semibold">Klik untuk unggah</p>
-                <p className="text-xs text-muted-foreground">PNG, JPG hingga 5MB</p>
-                <input type="file" accept="image/*" className="hidden" onChange={onUpload} />
-              </label>
-            )}
+            </div>
           </section>
         </div>
 
-        <aside className="space-y-4">
-          <div className="sticky top-20 rounded-2xl border border-border bg-card p-6 shadow-soft">
-            <h3 className="font-semibold">Ringkasan</h3>
-            <dl className="mt-4 space-y-2.5 text-sm">
-              <Row label="Pengaju" value={profile?.nama_lengkap ?? "—"} />
-              <Row label="Instansi" value={instansi} />
-              <Row label="Jumlah item" value={String(items.length)} />
-              <div className="my-3 border-t border-border" />
-              <div className="flex items-center justify-between">
-                <dt className="text-sm font-semibold">Total Anggaran</dt>
-                <dd className="text-lg font-bold text-primary">{formatRupiah(total)}</dd>
+        <aside className="lg:col-span-1">
+          <div className="sticky top-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-elevated">
+            <h3 className="text-lg font-bold text-slate-800 mb-6">Ringkasan Ajuan</h3>
+            
+            <div className="space-y-4 mb-8">
+              <div className="flex flex-col gap-1 rounded-2xl bg-slate-50 p-4">
+                <span className="text-xs font-semibold text-slate-500 uppercase">Total Anggaran Dibutuhkan</span>
+                <span className="text-3xl font-black text-primary tracking-tight">{formatRupiah(total)}</span>
               </div>
-            </dl>
-            <div className="mt-5 flex flex-col gap-2">
-              <button onClick={submit} disabled={uploading || createAjuan.isPending} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
-                {(uploading || createAjuan.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Kirim Ajuan
-              </button>
+              
+              <div className="space-y-3 px-1 text-sm">
+                <div className="flex justify-between border-b border-slate-100 pb-2">
+                  <span className="text-slate-500">Pengaju</span>
+                  <span className="font-bold text-slate-800">{pengajuNama || "—"}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100 pb-2">
+                  <span className="text-slate-500">Bidang</span>
+                  <span className="font-bold text-slate-800">{instansi}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100 pb-2">
+                  <span className="text-slate-500">Jumlah Item</span>
+                  <span className="font-bold text-slate-800">{items.length} Barang</span>
+                </div>
+              </div>
             </div>
+
+            <button 
+              onClick={submit} 
+              disabled={createAjuan.isPending} 
+              className="group relative flex h-14 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl bg-primary text-base font-bold text-primary-foreground shadow-lg transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+            >
+              {createAjuan.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <Send className="h-5 w-5 transform transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+                  Kirim Ajuan Sekarang
+                </>
+              )}
+            </button>
+            <p className="mt-4 text-center text-[11px] text-slate-400">
+              Dengan menekan tombol, Anda menyatakan bahwa data anggaran yang diajukan adalah benar.
+            </p>
           </div>
         </aside>
       </div>

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
-import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/dummy-data";
+import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
 import { useAjuanList, useAuditLog } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
 import { ArrowUpRight, FileText, Wallet, Clock, CheckCircle2, XCircle, TrendingUp, Plus, Send } from "lucide-react";
@@ -18,15 +18,28 @@ function DashboardPage() {
   const { data: audit = [] } = useAuditLog();
 
   const stats = useMemo(() => {
-    const c = (s: string) => ajuan.filter(a => a.status === s).length;
-    const totalNilai = ajuan.filter(a => a.status === "disetujui" || a.status === "dicairkan").reduce((s, a) => s + Number(a.total), 0);
+    const getStats = (status: string) => {
+      const filtered = ajuan.filter(a => a.status === status);
+      return {
+        count: filtered.length,
+        total: filtered.reduce((s, a) => s + Number(a.total || 0), 0)
+      };
+    };
+
+    const totalNilaiDisetujui = ajuan
+      .filter(a => a.status === "disetujui" || a.status === "dicairkan")
+      .reduce((s, a) => s + Number(a.total || 0), 0);
+
     return {
-      total: ajuan.length, menunggu: c("menunggu"), disetujui: c("disetujui"),
-      dicairkan: c("dicairkan"), ditolak: c("ditolak"), totalNilai,
+      total: { count: ajuan.length, total: ajuan.reduce((s, a) => s + Number(a.total || 0), 0) },
+      menunggu: getStats("menunggu"),
+      disetujui: getStats("disetujui"),
+      dicairkan: getStats("dicairkan"),
+      ditolak: getStats("ditolak"),
+      totalNilaiDisetujui,
     };
   }, [ajuan]);
 
-  // Group by month for chart
   const grafikBulanan = useMemo(() => {
     const map = new Map<string, { bulan: string; ajuan: number; dicairkan: number }>();
     ajuan.forEach(a => {
@@ -38,64 +51,81 @@ function DashboardPage() {
       if (a.status === "dicairkan") cur.dicairkan += 1;
       map.set(key, cur);
     });
-    const arr = Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
-    return arr.length > 0 ? arr : [{ bulan: "—", ajuan: 0, dicairkan: 0 }];
+    const result = Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v);
+    return result.length > 0 ? result.slice(-6) : [{ bulan: "—", ajuan: 0, dicairkan: 0 }];
   }, [ajuan]);
 
   const grafikInstansi = useMemo(() => {
     const map = new Map<string, number>();
     ajuan.filter(a => a.status === "disetujui" || a.status === "dicairkan").forEach(a => {
-      map.set(a.instansi, (map.get(a.instansi) ?? 0) + Number(a.total));
+      map.set(a.instansi, (map.get(a.instansi) ?? 0) + Number(a.total || 0));
     });
-    return Array.from(map.entries()).map(([instansi, nilai]) => ({ instansi, nilai })).slice(0, 6);
+    return Array.from(map.entries())
+      .map(([instansi, nilai]) => ({ instansi, nilai }))
+      .sort((a, b) => b.nilai - a.nilai)
+      .slice(0, 5);
   }, [ajuan]);
 
   const cards = [
-    { label: "Total Ajuan", value: stats.total, icon: FileText, color: "text-foreground", bg: "bg-secondary" },
-    { label: "Menunggu", value: stats.menunggu, icon: Clock, color: "text-warning-foreground", bg: "bg-warning/15" },
-    { label: "Disetujui", value: stats.disetujui, icon: CheckCircle2, color: "text-primary", bg: "bg-primary/12" },
-    { label: "Dicairkan", value: stats.dicairkan, icon: Wallet, color: "text-info", bg: "bg-info/12" },
-    { label: "Ditolak", value: stats.ditolak, icon: XCircle, color: "text-destructive", bg: "bg-destructive/12" },
+    { label: "Total Pengajuan", stats: stats.total, icon: FileText, color: "text-indigo-600", bg: "bg-indigo-50" },
+    { label: "Menunggu", stats: stats.menunggu, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
+    { label: "Disetujui", stats: stats.disetujui, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Dicairkan", stats: stats.dicairkan, icon: Wallet, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Ditolak", stats: stats.ditolak, icon: XCircle, color: "text-rose-600", bg: "bg-rose-50" },
   ];
 
   return (
     <>
       <PageHeader
-        title={`Selamat datang, ${profile?.nama_lengkap ?? "Pengguna"}`}
-        description="Ringkasan aktivitas anggaran pesantren — periode 2025/2026"
+        title={`Assalamu'alaikum, ${profile?.nama_lengkap ?? "Admin"}`}
+        description="Ringkasan aktivitas keuangan dan anggaran pesantren hari ini."
         actions={
-          <>
-            <Link to="/pencairan" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold shadow-soft transition-all hover:bg-secondary">
-              <Send className="h-4 w-4" /> Pencairan
+          <div className="flex gap-2">
+            <Link to="/ajuan/baru" className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-soft transition-all hover:bg-primary/90 hover:scale-105 active:scale-95">
+              <Plus className="h-4 w-4" /> Buat Ajuan Baru
             </Link>
-            <Link to="/ajuan/baru" className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition-all hover:bg-primary/90">
-              <Plus className="h-4 w-4" /> Buat Ajuan
-            </Link>
-          </>
+          </div>
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {cards.map(s => (
-          <div key={s.label} className="rounded-2xl border border-border bg-card p-4 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated">
+          <div key={s.label} className="group relative overflow-hidden rounded-3xl border border-border bg-card p-5 shadow-soft transition-all hover:shadow-elevated">
             <div className="flex items-start justify-between">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${s.bg}`}>
-                <s.icon className={`h-5 w-5 ${s.color}`} />
+              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${s.bg}`}>
+                <s.icon className={`h-6 w-6 ${s.color}`} />
               </div>
-              <span className="inline-flex items-center gap-0.5 rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
-                <TrendingUp className="h-3 w-3" /> live
+              <span className="flex h-6 items-center gap-1 rounded-full bg-emerald-500/10 px-2 text-[10px] font-black uppercase tracking-wider text-emerald-600">
+                <TrendingUp className="h-3 w-3" /> Live
               </span>
             </div>
-            <p className="mt-3 text-2xl font-bold tracking-tight">{isLoading ? "…" : s.value}</p>
-            <p className="text-xs text-muted-foreground">{s.label}</p>
+            <div className="mt-5">
+              <p className="text-sm font-medium text-muted-foreground">{s.label}</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <p className="text-2xl font-black tracking-tight">{isLoading ? "---" : s.stats.count}</p>
+                <p className="text-xs font-bold text-muted-foreground">Berkas</p>
+              </div>
+              <p className="mt-1 text-xs font-bold text-primary truncate">
+                {isLoading ? "Memuat..." : formatRupiah(s.stats.total)}
+              </p>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary to-primary/80 p-6 text-primary-foreground shadow-elevated">
-        <p className="text-xs font-medium uppercase tracking-wider opacity-80">Total nilai anggaran disetujui</p>
-        <p className="mt-1 text-3xl font-bold md:text-4xl">{formatRupiah(stats.totalNilai)}</p>
-        <p className="mt-1 text-sm opacity-80">Periode anggaran 2025/2026</p>
+      <div className="mt-6 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary to-primary/80 p-8 text-primary-foreground shadow-elevated">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest opacity-80">Total Anggaran Terpakai (Dicairkan/Disetujui)</p>
+            <p className="mt-2 text-4xl font-black tracking-tighter md:text-5xl">{formatRupiah(stats.totalNilaiDisetujui)}</p>
+          </div>
+          <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-md border border-white/10">
+            <p className="text-xs font-bold opacity-80">Periode Anggaran Aktif</p>
+            <p className="text-lg font-black italic">2025 / 2026</p>
+          </div>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
@@ -111,24 +141,24 @@ function DashboardPage() {
             </div>
           </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <AreaChart data={grafikBulanan}>
                 <defs>
                   <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="oklch(0.58 0.15 162)" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="oklch(0.58 0.15 162)" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="oklch(0.65 0.14 240)" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="oklch(0.65 0.14 240)" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" vertical={false} />
-                <XAxis dataKey="bulan" tick={{ fontSize: 12, fill: "oklch(0.5 0.02 250)" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: "oklch(0.5 0.02 250)" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.01 240)", fontSize: 12 }} />
-                <Area type="monotone" dataKey="ajuan" stroke="oklch(0.58 0.15 162)" strokeWidth={2.5} fill="url(#g1)" />
-                <Area type="monotone" dataKey="dicairkan" stroke="oklch(0.65 0.14 240)" strokeWidth={2.5} fill="url(#g2)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="bulan" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                <Area type="monotone" dataKey="ajuan" stroke="#10b981" strokeWidth={2.5} fill="url(#g1)" />
+                <Area type="monotone" dataKey="dicairkan" stroke="#3b82f6" strokeWidth={2.5} fill="url(#g2)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -141,13 +171,13 @@ function DashboardPage() {
             {grafikInstansi.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Belum ada data</div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={grafikInstansi} layout="vertical" margin={{ left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
                   <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="instansi" tick={{ fontSize: 11, fill: "oklch(0.5 0.02 250)" }} axisLine={false} tickLine={false} width={70} />
-                  <Tooltip formatter={(v) => formatRupiah(Number(v))} contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.01 240)", fontSize: 12 }} />
-                  <Bar dataKey="nilai" fill="oklch(0.58 0.15 162)" radius={[0, 6, 6, 0]} />
+                  <YAxis type="category" dataKey="instansi" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={70} />
+                  <Tooltip formatter={(v) => formatRupiah(Number(v))} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                  <Bar dataKey="nilai" fill="#10b981" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
-import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/dummy-data";
+import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
 import { useAjuanList, useApproval } from "@/lib/queries";
 import { Check, X, Eye, Loader2 } from "lucide-react";
 import { toast } from "sonner";

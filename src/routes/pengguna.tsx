@@ -3,10 +3,10 @@ import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { usePengguna } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
-import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 import { Search, Shield, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/pengguna")({
   head: () => ({ meta: [{ title: "Manajemen Pengguna — E-Budgeting Pesantren" }] }),
@@ -31,10 +31,16 @@ function PenggunaPage() {
 
   const changeRole = async (userId: string, newRole: Role) => {
     if (!isAdmin) { toast.error("Hanya admin yang dapat mengubah role"); return; }
-    await supabase.from("user_roles").delete().eq("user_id", userId);
-    const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole });
-    if (error) toast.error("Gagal", { description: error.message });
-    else { toast.success("Role berhasil diubah"); qc.invalidateQueries({ queryKey: ["pengguna"] }); }
+    try {
+      await apiFetch(`/pengguna/${userId}/role`, {
+        method: "PATCH",
+        body: JSON.stringify({ role: newRole }),
+      });
+      toast.success("Role berhasil diubah");
+      qc.invalidateQueries({ queryKey: ["pengguna"] });
+    } catch (err: any) {
+      toast.error("Gagal", { description: err.message });
+    }
   };
 
   return (

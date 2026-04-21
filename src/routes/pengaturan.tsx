@@ -28,7 +28,7 @@ function PengaturanPage() {
   }, [theme]);
 
   return (
-    <AppLayout>
+    <>
       <PageHeader title="Pengaturan" description="Konfigurasi aplikasi dan preferensi pengguna" />
 
       <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
@@ -133,7 +133,7 @@ function PengaturanPage() {
         </div>
       </div>
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-    </AppLayout>
+    </>
   );
 }
 

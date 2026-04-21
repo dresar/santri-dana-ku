@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
-import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/dummy-data";
+import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
 import { useAjuanList, type AjuanStatus } from "@/lib/queries";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
 import { Download, FileText, FileSpreadsheet, FileType2, ChevronDown, Calendar } from "lucide-react";
@@ -74,7 +74,7 @@ function LaporanPage() {
         <h3 className="mb-4 font-semibold">Realisasi Anggaran Bulanan</h3>
         <div className="h-72">
           {grafik.length === 0 ? <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Belum ada data</div> : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={grafik}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" vertical={false} />
                 <XAxis dataKey="bulan" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />

@@ -1,7 +1,10 @@
+import * as React from "react";
 import { Outlet, Link, createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth-context";
 import { Toaster } from "@/components/ui/sonner";
+import { AppLayout } from "@/components/AppLayout";
+import { useLocation } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
 
@@ -67,10 +70,19 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const location = useLocation();
+  const isAuth = location.pathname === "/auth";
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Outlet />
+        {isAuth ? (
+          <Outlet />
+        ) : (
+          <AppLayout>
+            <Outlet />
+          </AppLayout>
+        )}
         <Toaster position="top-right" richColors />
       </AuthProvider>
     </QueryClientProvider>

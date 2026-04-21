@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
-import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/dummy-data";
+import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
 import { useAjuanList, type AjuanStatus } from "@/lib/queries";
-import { Search, Plus, Filter, Eye, ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
+import { Search, Plus, Filter, Eye, ChevronLeft, ChevronRight, Download, Loader2, FileText } from "lucide-react";
 
 export const Route = createFileRoute("/ajuan/")({
   head: () => ({ meta: [{ title: "Ajuan Anggaran — E-Budgeting Pesantren" }] }),
@@ -24,6 +24,7 @@ function AjuanListPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | AjuanStatus>("all");
   const [page, setPage] = useState(1);
+  const [exportOpen, setExportOpen] = useState(false);
   const { data: ajuanData = [], isLoading } = useAjuanList();
 
   const filtered = useMemo(() => {
@@ -40,17 +41,48 @@ function AjuanListPage() {
   return (
     <>
       <PageHeader
-        title="Ajuan Anggaran"
-        description="Kelola seluruh ajuan anggaran dari setiap unit pesantren"
+        title="Daftar Ajuan Anggaran"
+        description="Kelola dan monitor seluruh ajuan anggaran unit Pesantren Raudhatussalam."
         actions={
-          <>
-            <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold shadow-soft hover:bg-secondary">
-              <Download className="h-4 w-4" /> Export
-            </button>
-            <Link to="/ajuan/baru" className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90">
+          <div className="flex gap-2">
+            <div className="relative">
+              <button 
+                onClick={() => setExportOpen(!exportOpen)}
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 shadow-soft transition-all hover:bg-slate-50 active:scale-95"
+              >
+                <Download className="h-4 w-4 text-primary" /> Export Data
+              </button>
+              
+              {exportOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
+                  <div className="absolute right-0 top-full z-20 mt-2 w-72 origin-top-right animate-in fade-in zoom-in-95 rounded-2xl border border-slate-200 bg-white p-3 shadow-elevated">
+                    <div className="mb-2 px-2 pt-1 pb-2 border-b border-slate-100">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pilih Format Laporan</p>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="mb-1.5 px-2 text-xs font-bold text-slate-800">Laporan Rekapitulasi (.csv / .xls)</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button onClick={() => setExportOpen(false)} className="flex items-center justify-center rounded-lg bg-emerald-50 py-2 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors">Excel (.xlsx)</button>
+                          <button onClick={() => setExportOpen(false)} className="flex items-center justify-center rounded-lg bg-blue-50 py-2 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors">Data (.csv)</button>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="mb-1.5 px-2 text-xs font-bold text-slate-800">Dokumen Cetak (.pdf)</p>
+                        <button onClick={() => setExportOpen(false)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-50 py-2.5 text-[11px] font-bold text-rose-700 hover:bg-rose-100 transition-colors">
+                          <FileText className="h-3.5 w-3.5" /> Download PDF (Resmi)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <Link to="/ajuan/baru" className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-soft transition-all hover:bg-primary/90 hover:scale-105 active:scale-95">
               <Plus className="h-4 w-4" /> Buat Ajuan
             </Link>
-          </>
+          </div>
         }
       />
 

@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { formatRupiah } from "@/lib/dummy-data";
+import { formatRupiah } from "@/lib/utils";
 import { useAjuanList, useCreatePencairan } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
-import { supabase } from "@/integrations/supabase/client";
 import { Search, Wallet, CheckCircle2, Upload, X, Building2, User, Calendar, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
@@ -40,10 +39,8 @@ function PencairanPage() {
     setBusy(true);
     let bukti_url: string | undefined;
     if (buktiFile) {
-      const path = `${user.id}/pencairan-${Date.now()}-${buktiFile.name}`;
-      const { error: e } = await supabase.storage.from("bukti").upload(path, buktiFile);
-      if (e) { toast.error("Upload gagal", { description: e.message }); setBusy(false); return; }
-      bukti_url = supabase.storage.from("bukti").getPublicUrl(path).data.publicUrl;
+      // TODO: Implement file upload
+      bukti_url = "https://placeholder-pencairan-url.com";
     }
     try {
       await create.mutateAsync({
@@ -115,33 +112,40 @@ function PencairanPage() {
                         {banks.map(b => <option key={b}>{b}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold">Nomor Rekening</label>
-                      <input value={norek} onChange={e => setNorek(e.target.value)} placeholder="7012345678" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
+                    <div className="md:col-span-2">
+                      <label className="mb-1.5 block text-xs font-semibold">Nomor Rekening Tujuan</label>
+                      <input value={norek} onChange={e => setNorek(e.target.value)} placeholder="0000000000" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="mb-1.5 block text-xs font-semibold">Nama Pemilik Rekening</label>
-                      <input value={pemilik} onChange={e => setPemilik(e.target.value)} placeholder="Nama sesuai buku rekening" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
+                      <label className="mb-1.5 block text-xs font-semibold">Nama Pemilik Rekening / Instansi</label>
+                      <input value={pemilik} onChange={e => setPemilik(e.target.value)} placeholder="Nama pada buku tabungan" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/20" />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="mb-1.5 block text-xs font-semibold">Bukti Transfer</label>
+                      <label className="mb-1.5 block text-xs font-semibold">Lampiran Dokumen Anggaran (Disetujui)</label>
+                      <p className="mb-2 text-[10px] text-muted-foreground italic">*Unggah pindaian (scan) Rencana Anggaran Biaya yang telah ditandatangani pengurus.</p>
                       {buktiPreview ? (
                         <div className="relative inline-block">
-                          <img src={buktiPreview} alt="Bukti" className="max-h-44 rounded-lg border border-border" />
-                          <button onClick={() => { setBuktiPreview(null); setBuktiFile(null); }} className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground"><X className="h-4 w-4" /></button>
+                          <img src={buktiPreview} alt="Dokumen" className="max-h-44 rounded-lg border border-border" />
+                          <button onClick={() => { setBuktiPreview(null); setBuktiFile(null); }} className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-soft"><X className="h-4 w-4" /></button>
                         </div>
                       ) : (
-                        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-secondary/30 p-6 text-center hover:bg-secondary/60">
-                          <Upload className="h-5 w-5 text-muted-foreground" />
-                          <p className="text-sm font-semibold">Klik untuk unggah bukti</p>
-                          <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setBuktiFile(f); setBuktiPreview(URL.createObjectURL(f)); } }} />
+                        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-slate-50 p-6 text-center transition-all hover:bg-slate-100/80">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <Upload className="h-5 w-5" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold text-slate-700">Pilih Dokumen Anggaran</p>
+                            <p className="text-[11px] text-slate-500">Format PDF, PNG atau JPG (Maks. 10MB)</p>
+                          </div>
+                          <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setBuktiFile(f); setBuktiPreview(URL.createObjectURL(f)); } }} />
                         </label>
                       )}
                     </div>
                   </div>
-                  <div className="mt-5 flex justify-end gap-2">
-                    <button onClick={submit} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Proses Pencairan
+                  <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-6">
+                    <button onClick={submit} disabled={busy} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-soft transition-all hover:bg-primary/90 hover:scale-[1.01] active:scale-95 disabled:opacity-50">
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />} 
+                      Konfirmasi & Selesaikan Pencairan
                     </button>
                   </div>
                 </div>

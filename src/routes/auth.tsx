@@ -83,6 +83,47 @@ function AuthPage() {
               {mode === "login" ? "Daftar di sini" : "Masuk"}
             </button>
           </p>
+
+          {mode === "login" && (
+            <div className="mt-8 border-t border-border pt-6">
+              <p className="mb-3 text-center text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Dev Quick Login</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Admin", email: "admin@example.com" },
+                  { label: "Approver", email: "approver@example.com" },
+                  { label: "Pengaju", email: "pengaju@example.com" },
+                ].map((d) => (
+                  <button
+                    key={d.email}
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        const res = await fetch("/api/auth/dev-login", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ email: d.email }),
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                          localStorage.setItem("auth_token", data.token);
+                          window.location.href = "/";
+                        } else {
+                          toast.error(data.error);
+                        }
+                      } catch (err) {
+                        toast.error("Dev login error");
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    className="rounded-lg border border-primary/20 bg-primary/5 py-2 text-[10px] font-bold text-primary hover:bg-primary/10"
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <p className="mt-6 text-center text-[11px] text-muted-foreground">© 2025 Pesantren Modern Raudhatussalam Mahato</p>

@@ -35,14 +35,43 @@ export function AppLayout({ children }: { children?: React.ReactNode }) {
     exact ? location.pathname === to : location.pathname === to || location.pathname.startsWith(to + "/");
 
   // Auth guard
+  const isPublicForm = location.pathname === "/ajuan/baru";
+  
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center bg-background"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
   }
-  if (!user) {
+  
+  if (!user && !isPublicForm) {
     if (typeof window !== "undefined" && location.pathname !== "/auth") {
       router.navigate({ to: "/auth" });
     }
     return null;
+  }
+
+  if (!user && isPublicForm) {
+    return (
+      <div className="min-h-screen bg-slate-50 py-12 px-4 shadow-inner">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-10 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-soft">
+              <Building2 className="h-8 w-8" />
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
+              Pengajuan Anggaran
+            </h1>
+            <p className="mt-2 text-slate-600 font-medium">
+              Pesantren Modern Raudhatussalam Mahato
+            </p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+            {children ?? <Outlet />}
+          </div>
+          <p className="mt-8 text-center text-xs text-slate-400">
+            &copy; 2025 Pesantren Modern Raudhatussalam Mahato — Sistem Keuangan Digital
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -108,14 +137,7 @@ export function AppLayout({ children }: { children?: React.ReactNode }) {
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
 
-          <div className="relative max-w-md flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Cari ajuan, pengguna, atau dokumen..."
-              className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none transition-all placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
-            />
-          </div>
+          <div className="flex-1" />
 
           <Link to="/notifikasi" className="relative rounded-lg p-2.5 hover:bg-secondary transition-colors">
             <Bell className="h-5 w-5 text-muted-foreground" />

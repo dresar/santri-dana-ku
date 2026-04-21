@@ -1,8 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
 
 export type AppRole = "admin" | "pengaju" | "approver";
+
+interface User {
+  id: string;
+  email: string;
+  nama_lengkap: string;
+}
 
 interface Profile {
   id: string;
@@ -15,7 +19,7 @@ interface Profile {
 
 interface AuthContextValue {
   user: User | null;
-  session: Session | null;
+  token: string | null;
   profile: Profile | null;
   role: AppRole | null;
   loading: boolean;
@@ -27,73 +31,99 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const API_URL = import.meta.env.VITE_API_URL || "/api";
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfileAndRole = async (uid: string) => {
-    const [{ data: p }, { data: r }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", uid).maybeSingle(),
-    ]);
-    setProfile(p as Profile | null);
-    setRole((r?.role as AppRole) ?? null);
+  const loadData = async (jwt: string) => {
+    try {
+      const res = await fetch(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.user);
+        setProfile(data.user); // In our Hono server, user returned from /me is the profile
+        setRole(data.role);
+      } else {
+        signOut();
+      }
+    } catch (err) {
+      console.error("Load profile error:", err);
+    }
   };
 
   useEffect(() => {
-    // Set listener BEFORE getSession (per Supabase docs)
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
-      setSession(sess);
-      setUser(sess?.user ?? null);
-      if (sess?.user) {
-        // defer to avoid deadlock
-        setTimeout(() => loadProfileAndRole(sess.user.id), 0);
-      } else {
-        setProfile(null);
-        setRole(null);
-      }
-    });
-
-    supabase.auth.getSession().then(({ data: { session: sess } }) => {
-      setSession(sess);
-      setUser(sess?.user ?? null);
-      if (sess?.user) loadProfileAndRole(sess.user.id);
+    const savedToken = localStorage.getItem("auth_token");
+    if (savedToken) {
+      setToken(savedToken);
+      loadData(savedToken).finally(() => setLoading(false));
+    } else {
       setLoading(false);
-    });
-
-    return () => sub.subscription.unsubscribe();
+    }
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("auth_token", data.token);
+        setToken(data.token);
+        setUser(data.user);
+        setRole(data.role);
+        return { error: null };
+      }
+      return { error: data.error || "Login failed" };
+    } catch (err: any) {
+      return { error: err.message };
+    }
   };
 
-  const signUp = async (email: string, password: string, meta: { nama_lengkap: string; jabatan?: string; instansi?: string; no_hp?: string }) => {
-    const redirectUrl = `${window.location.origin}/`;
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: redirectUrl, data: meta },
-    });
-    return { error: error?.message ?? null };
+  const signUp = async (email: string, password: string, meta: any) => {
+    try {
+      const res = await fetch(`${API_URL}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, ...meta }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("auth_token", data.token);
+        setToken(data.token);
+        setUser(data.user);
+        setRole("pengaju");
+        return { error: null };
+      }
+      return { error: data.error || "Signup failed" };
+    } catch (err: any) {
+      return { error: err.message };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem("auth_token");
+    setToken(null);
+    setUser(null);
     setProfile(null);
     setRole(null);
   };
 
   const refreshProfile = async () => {
-    if (user) await loadProfileAndRole(user.id);
+    if (token) await loadData(token);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, role, loading, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, token, profile, role, loading, signIn, signUp, signOut, refreshProfile, session: null } as any}>
       {children}
     </AuthContext.Provider>
   );
