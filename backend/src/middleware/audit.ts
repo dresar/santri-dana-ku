@@ -8,7 +8,10 @@ export const auditLogger = createMiddleware(async (c, next) => {
   let bodySnapshot: any = null;
   if (isMutation) {
     try {
-      bodySnapshot = await c.req.json();
+      // Clone the request to avoid consuming the body stream
+      const cloned = c.req.raw.clone();
+      const text = await cloned.text();
+      bodySnapshot = text ? JSON.parse(text) : null;
     } catch {
       bodySnapshot = null;
     }
