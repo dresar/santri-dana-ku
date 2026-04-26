@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
+    "build": "esbuild api/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=api/server.js --external:cloudinary --external:@neondatabase/serverless",
     "migrate": "tsx --env-file=.env scripts/migrate.ts",
     "seed": "tsx --env-file=.env scripts/seed.ts"
   },
@@ -22,6 +21,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "esbuild": "^0.25.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.16.5",
     "tsx": "^4.21.0",
