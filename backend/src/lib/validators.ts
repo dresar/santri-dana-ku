@@ -24,6 +24,7 @@ export const UpdateProfileSchema = z.object({
   jabatan: z.string().optional(),
   instansi: z.string().optional(),
   no_hp: z.string().optional(),
+  foto_url: z.string().optional(),
 });
 
 export const ChangePasswordSchema = z.object({

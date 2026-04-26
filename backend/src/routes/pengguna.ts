@@ -62,7 +62,8 @@ pengguna.patch('/me', authMiddleware, async (c) => {
       nama_lengkap = COALESCE(${f.nama_lengkap ?? null}, nama_lengkap),
       jabatan = COALESCE(${f.jabatan ?? null}, jabatan),
       instansi = COALESCE(${f.instansi ?? null}, instansi),
-      no_hp = COALESCE(${f.no_hp ?? null}, no_hp)
+      no_hp = COALESCE(${f.no_hp ?? null}, no_hp),
+      foto_url = COALESCE(${f.foto_url ?? null}, foto_url)
     WHERE id = ${userId}
   `;
 
