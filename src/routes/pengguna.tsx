@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { usePengguna } from "@/lib/queries";
+import { usePengguna, useUpdateRole, useResetPassword, useDeletePengguna, type Pengguna } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch } from "@/lib/api";
-import { Search, Shield, Loader2 } from "lucide-react";
+import { Search, Shield, Loader2, Plus, Key, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/pengguna")({
   head: () => ({ meta: [{ title: "Manajemen Pengguna — E-Budgeting Pesantren" }] }),
@@ -19,9 +18,10 @@ type Role = typeof roles[number];
 function PenggunaPage() {
   const [tab, setTab] = useState<"users" | "roles">("users");
   const [q, setQ] = useState("");
-  const { data: users = [], isLoading } = usePengguna();
+  const { data: usersRaw = [], isLoading } = usePengguna();
+  const users: Pengguna[] = Array.isArray(usersRaw) ? usersRaw : [];
   const { role: currentRole } = useAuth();
-  const qc = useQueryClient();
+  const updateRole = useUpdateRole();
   const isAdmin = currentRole === "admin";
 
   const filtered = useMemo(() =>
@@ -29,23 +29,51 @@ function PenggunaPage() {
     [users, q]
   );
 
+  const resetPassword = useResetPassword();
+  const deletePengguna = useDeletePengguna();
+
   const changeRole = async (userId: string, newRole: Role) => {
     if (!isAdmin) { toast.error("Hanya admin yang dapat mengubah role"); return; }
     try {
-      await apiFetch(`/pengguna/${userId}/role`, {
-        method: "PATCH",
-        body: JSON.stringify({ role: newRole }),
-      });
+      await updateRole.mutateAsync({ id: userId, role: newRole });
       toast.success("Role berhasil diubah");
-      qc.invalidateQueries({ queryKey: ["pengguna"] });
     } catch (err: any) {
       toast.error("Gagal", { description: err.message });
     }
   };
 
+  const handleResetPassword = async (u: Pengguna) => {
+    const newPass = prompt(`Masukkan password baru untuk ${u.nama_lengkap}:`, "santri123");
+    if (!newPass) return;
+    if (newPass.length < 6) { toast.error("Password minimal 6 karakter"); return; }
+
+    try {
+      await resetPassword.mutateAsync({ id: u.id, password: newPass });
+      toast.success(`Password ${u.nama_lengkap} berhasil direset`);
+    } catch (err: any) {
+      toast.error("Gagal reset password", { description: err.message });
+    }
+  };
+
+  const handleDelete = async (u: Pengguna) => {
+    if (!confirm(`Hapus pengguna ${u.nama_lengkap}? Tindakan ini tidak dapat dibatalkan.`)) return;
+    try {
+      await deletePengguna.mutateAsync(u.id);
+      toast.success("Pengguna dihapus");
+    } catch (err: any) {
+      toast.error("Gagal menghapus", { description: err.message });
+    }
+  };
+
   return (
     <>
-      <PageHeader title="Manajemen Pengguna" description="Kelola pengguna dan hak akses sistem" />
+      <PageHeader title="Manajemen Pengguna" description="Kelola pengguna dan hak akses sistem" 
+        actions={isAdmin && (
+          <Link to="/pengguna/baru" className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90 transition-transform hover:scale-105">
+            <Plus className="h-4 w-4" /> Tambah Pengguna
+          </Link>
+        )}
+      />
 
       <div className="mb-4 flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-soft">
         <button onClick={() => setTab("users")} className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold ${tab === "users" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}>Daftar Pengguna</button>
@@ -69,13 +97,14 @@ function PenggunaPage() {
                   <th className="px-4 py-3 font-semibold">Kontak</th>
                   <th className="px-4 py-3 font-semibold">Role</th>
                   <th className="px-4 py-3 font-semibold">Bergabung</th>
+                  <th className="px-4 py-3 font-semibold text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></td></tr>
+                  <tr><td colSpan={6} className="px-4 py-12 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-muted-foreground">Belum ada pengguna.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">Belum ada pengguna.</td></tr>
                 ) : filtered.map(u => (
                   <tr key={u.id} className="border-b border-border last:border-0 hover:bg-secondary/40">
                     <td className="px-4 py-3">
@@ -99,6 +128,24 @@ function PenggunaPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString("id-ID")}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => handleResetPassword(u)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-primary transition-colors"
+                          title="Reset Password"
+                        >
+                          <Key className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(u)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Hapus Pengguna"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

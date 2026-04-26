@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { useAuditLog } from "@/lib/queries";
+import { useAuditLog, type AuditLog } from "@/lib/queries";
 import { Search, Filter, Download, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/audit")({
@@ -13,7 +13,8 @@ function AuditPage() {
   const [q, setQ] = useState("");
   const [aksi, setAksi] = useState("all");
   const [modul, setModul] = useState("all");
-  const { data: log = [], isLoading } = useAuditLog();
+  const { data: logRaw = [], isLoading } = useAuditLog();
+  const log: AuditLog[] = Array.isArray(logRaw) ? logRaw : [];
 
   const filtered = useMemo(() => log.filter(a =>
     (aksi === "all" || a.aksi === aksi) &&

@@ -1,6 +1,7 @@
+import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Building2, Loader2 } from "lucide-react";
+import { Building2, Loader2, ShieldCheck, UserCheck, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 
@@ -86,39 +87,28 @@ function AuthPage() {
 
           {mode === "login" && (
             <div className="mt-8 border-t border-border pt-6">
-              <p className="mb-3 text-center text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Dev Quick Login</p>
+              <div className="mb-4 flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Akses Cepat (Manual)</p>
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Dev Mode</span>
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { label: "Admin", email: "admin@example.com" },
-                  { label: "Approver", email: "approver@example.com" },
-                  { label: "Pengaju", email: "pengaju@example.com" },
+                  { label: "Admin", email: "admin@example.com", icon: ShieldCheck, color: "text-red-500 bg-red-50 border-red-100" },
+                  { label: "Approver", email: "approver@example.com", icon: UserCheck, color: "text-blue-500 bg-blue-50 border-blue-100" },
+                  { label: "Pengaju", email: "pengaju@example.com", icon: Users, color: "text-emerald-500 bg-emerald-50 border-emerald-100" },
                 ].map((d) => (
                   <button
                     key={d.email}
-                    onClick={async () => {
-                      setBusy(true);
-                      try {
-                        const res = await fetch("/api/auth/dev-login", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ email: d.email }),
-                        });
-                        const data = await res.json();
-                        if (res.ok) {
-                          localStorage.setItem("auth_token", data.token);
-                          window.location.href = "/";
-                        } else {
-                          toast.error(data.error);
-                        }
-                      } catch (err) {
-                        toast.error("Dev login error");
-                      } finally {
-                        setBusy(false);
-                      }
+                    disabled={busy}
+                    onClick={() => {
+                      setEmail(d.email);
+                      setPassword("password123");
+                      toast.info(`Form terisi untuk ${d.label}`, { description: "Silakan klik tombol Masuk untuk melanjutkan." });
                     }}
-                    className="rounded-lg border border-primary/20 bg-primary/5 py-2 text-[10px] font-bold text-primary hover:bg-primary/10"
+                    className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-3 transition-all hover:scale-105 active:scale-95 ${d.color} ${busy ? "opacity-50" : ""}`}
                   >
-                    {d.label}
+                    <d.icon className="h-5 w-5" />
+                    <span className="text-[10px] font-bold uppercase">{d.label}</span>
                   </button>
                 ))}
               </div>

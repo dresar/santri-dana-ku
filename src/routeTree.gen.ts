@@ -17,8 +17,10 @@ import { Route as LaporanRouteImport } from './routes/laporan'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuditRouteImport } from './routes/audit'
 import { Route as ApprovalRouteImport } from './routes/approval'
+import { Route as AiRouteImport } from './routes/ai'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AjuanIndexRouteImport } from './routes/ajuan.index'
+import { Route as PenggunaBaruRouteImport } from './routes/pengguna_.baru'
 import { Route as AjuanBaruRouteImport } from './routes/ajuan.baru'
 import { Route as AjuanIdRouteImport } from './routes/ajuan.$id'
 
@@ -62,6 +64,11 @@ const ApprovalRoute = ApprovalRouteImport.update({
   path: '/approval',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AiRoute = AiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -70,6 +77,11 @@ const IndexRoute = IndexRouteImport.update({
 const AjuanIndexRoute = AjuanIndexRouteImport.update({
   id: '/ajuan/',
   path: '/ajuan/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PenggunaBaruRoute = PenggunaBaruRouteImport.update({
+  id: '/pengguna_/baru',
+  path: '/pengguna/baru',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AjuanBaruRoute = AjuanBaruRouteImport.update({
@@ -85,6 +97,7 @@ const AjuanIdRoute = AjuanIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ai': typeof AiRoute
   '/approval': typeof ApprovalRoute
   '/audit': typeof AuditRoute
   '/auth': typeof AuthRoute
@@ -95,10 +108,12 @@ export interface FileRoutesByFullPath {
   '/pengguna': typeof PenggunaRoute
   '/ajuan/$id': typeof AjuanIdRoute
   '/ajuan/baru': typeof AjuanBaruRoute
+  '/pengguna/baru': typeof PenggunaBaruRoute
   '/ajuan/': typeof AjuanIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ai': typeof AiRoute
   '/approval': typeof ApprovalRoute
   '/audit': typeof AuditRoute
   '/auth': typeof AuthRoute
@@ -109,11 +124,13 @@ export interface FileRoutesByTo {
   '/pengguna': typeof PenggunaRoute
   '/ajuan/$id': typeof AjuanIdRoute
   '/ajuan/baru': typeof AjuanBaruRoute
+  '/pengguna/baru': typeof PenggunaBaruRoute
   '/ajuan': typeof AjuanIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ai': typeof AiRoute
   '/approval': typeof ApprovalRoute
   '/audit': typeof AuditRoute
   '/auth': typeof AuthRoute
@@ -124,12 +141,14 @@ export interface FileRoutesById {
   '/pengguna': typeof PenggunaRoute
   '/ajuan/$id': typeof AjuanIdRoute
   '/ajuan/baru': typeof AjuanBaruRoute
+  '/pengguna_/baru': typeof PenggunaBaruRoute
   '/ajuan/': typeof AjuanIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ai'
     | '/approval'
     | '/audit'
     | '/auth'
@@ -140,10 +159,12 @@ export interface FileRouteTypes {
     | '/pengguna'
     | '/ajuan/$id'
     | '/ajuan/baru'
+    | '/pengguna/baru'
     | '/ajuan/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ai'
     | '/approval'
     | '/audit'
     | '/auth'
@@ -154,10 +175,12 @@ export interface FileRouteTypes {
     | '/pengguna'
     | '/ajuan/$id'
     | '/ajuan/baru'
+    | '/pengguna/baru'
     | '/ajuan'
   id:
     | '__root__'
     | '/'
+    | '/ai'
     | '/approval'
     | '/audit'
     | '/auth'
@@ -168,11 +191,13 @@ export interface FileRouteTypes {
     | '/pengguna'
     | '/ajuan/$id'
     | '/ajuan/baru'
+    | '/pengguna_/baru'
     | '/ajuan/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AiRoute: typeof AiRoute
   ApprovalRoute: typeof ApprovalRoute
   AuditRoute: typeof AuditRoute
   AuthRoute: typeof AuthRoute
@@ -183,6 +208,7 @@ export interface RootRouteChildren {
   PenggunaRoute: typeof PenggunaRoute
   AjuanIdRoute: typeof AjuanIdRoute
   AjuanBaruRoute: typeof AjuanBaruRoute
+  PenggunaBaruRoute: typeof PenggunaBaruRoute
   AjuanIndexRoute: typeof AjuanIndexRoute
 }
 
@@ -244,6 +270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApprovalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ai': {
+      id: '/ai'
+      path: '/ai'
+      fullPath: '/ai'
+      preLoaderRoute: typeof AiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -256,6 +289,13 @@ declare module '@tanstack/react-router' {
       path: '/ajuan'
       fullPath: '/ajuan/'
       preLoaderRoute: typeof AjuanIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pengguna_/baru': {
+      id: '/pengguna_/baru'
+      path: '/pengguna/baru'
+      fullPath: '/pengguna/baru'
+      preLoaderRoute: typeof PenggunaBaruRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ajuan/baru': {
@@ -277,6 +317,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AiRoute: AiRoute,
   ApprovalRoute: ApprovalRoute,
   AuditRoute: AuditRoute,
   AuthRoute: AuthRoute,
@@ -287,6 +328,7 @@ const rootRouteChildren: RootRouteChildren = {
   PenggunaRoute: PenggunaRoute,
   AjuanIdRoute: AjuanIdRoute,
   AjuanBaruRoute: AjuanBaruRoute,
+  PenggunaBaruRoute: PenggunaBaruRoute,
   AjuanIndexRoute: AjuanIndexRoute,
 }
 export const routeTree = rootRouteImport

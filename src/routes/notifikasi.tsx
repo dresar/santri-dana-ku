@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Toggle } from "./pengguna";
-import { useNotifikasi, useMarkNotifRead } from "@/lib/queries";
-import { Bell, CheckCircle2, AlertTriangle, Info, XCircle, CheckCheck } from "lucide-react";
+import { useNotifikasi, useMarkNotifRead, useMarkAllNotifRead, useDeleteNotif, type Notifikasi } from "@/lib/queries";
+import { Bell, CheckCircle2, AlertTriangle, Info, XCircle, CheckCheck, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export const Route = createFileRoute("/notifikasi")({
@@ -27,14 +27,15 @@ const settings = [
 
 function NotifikasiPage() {
   const [tab, setTab] = useState<"list" | "settings">("list");
-  const { data: items = [] } = useNotifikasi();
+  const { data: itemsRaw = [] } = useNotifikasi();
+  const items: Notifikasi[] = Array.isArray(itemsRaw) ? itemsRaw : [];
   const markRead = useMarkNotifRead();
+  const markAllRead = useMarkAllNotifRead();
+  const deleteNotif = useDeleteNotif();
   const [toggles, setToggles] = useState<Record<string, boolean>>({ email_ajuan: true, email_status: true, push_realtime: true, wa_pencairan: false });
   const unread = items.filter(n => !n.dibaca).length;
 
-  const markAll = async () => {
-    for (const n of items.filter(x => !x.dibaca)) await markRead.mutateAsync(n.id);
-  };
+  const markAll = () => markAllRead.mutate();
 
   return (
     <>
@@ -66,7 +67,7 @@ function NotifikasiPage() {
                 const meta = iconByJenis[n.tipe] ?? iconByJenis.info;
                 const Icon = meta.icon;
                 return (
-                  <li key={n.id} className={`flex gap-4 p-4 transition-colors hover:bg-secondary/40 ${!n.dibaca ? "bg-primary-soft/20" : ""}`}
+                  <li key={n.id} className={`group flex items-start gap-4 p-4 transition-colors hover:bg-secondary/40 ${!n.dibaca ? "bg-primary-soft/20" : ""}`}
                     onClick={() => !n.dibaca && markRead.mutate(n.id)}>
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${meta.cls}`}><Icon className="h-5 w-5" /></div>
                     <div className="min-w-0 flex-1">
@@ -77,6 +78,12 @@ function NotifikasiPage() {
                       <p className="text-sm text-muted-foreground">{n.pesan}</p>
                       <p className="mt-1 text-xs text-muted-foreground">{new Date(n.created_at).toLocaleString("id-ID")}</p>
                     </div>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); deleteNotif.mutate(n.id); }}
+                      className="p-2 text-muted-foreground hover:text-destructive rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </li>
                 );
               })}

@@ -2,8 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
 import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
-import { useAjuanList, type AjuanStatus } from "@/lib/queries";
-import { Search, Plus, Filter, Eye, ChevronLeft, ChevronRight, Download, Loader2, FileText } from "lucide-react";
+import { useAjuanList, type AjuanStatus, useDeleteAjuan } from "@/lib/queries";
+import { useAuth } from "@/lib/auth-context";
+import { Search, Plus, Filter, Eye, ChevronLeft, ChevronRight, Download, Loader2, FileText, Printer, Trash2, Edit } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/ajuan/")({
   head: () => ({ meta: [{ title: "Ajuan Anggaran — E-Budgeting Pesantren" }] }),
@@ -21,11 +23,33 @@ const filterOptions: { value: "all" | AjuanStatus; label: string }[] = [
 ];
 
 function AjuanListPage() {
+  const { role } = useAuth();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | AjuanStatus>("all");
   const [page, setPage] = useState(1);
   const [exportOpen, setExportOpen] = useState(false);
   const { data: ajuanData = [], isLoading } = useAjuanList();
+  const deleteAjuan = useDeleteAjuan();
+
+  const handleDelete = async (a: any) => {
+    const isApprover = role === "admin" || role === "approver";
+    let reason = "";
+
+    if (isApprover) {
+      const input = prompt(`Masukkan alasan penghapusan untuk ajuan ${a.kode}:`, "Kesalahan data / Pembatalan operasional");
+      if (input === null) return; // cancel
+      reason = input;
+    } else {
+      if (!confirm(`Apakah Anda yakin ingin menghapus ajuan ${a.kode}?`)) return;
+    }
+
+    try {
+      await deleteAjuan.mutateAsync({ id: a.id, reason });
+      toast.success("Ajuan berhasil dihapus");
+    } catch (err: any) {
+      toast.error("Gagal menghapus", { description: err.message });
+    }
+  };
 
   const filtered = useMemo(() => {
     return ajuanData.filter(a => {
@@ -48,7 +72,7 @@ function AjuanListPage() {
             <div className="relative">
               <button 
                 onClick={() => setExportOpen(!exportOpen)}
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 shadow-soft transition-all hover:bg-slate-50 active:scale-95"
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-card px-5 text-sm font-bold text-foreground shadow-soft transition-all hover:bg-secondary active:scale-95"
               >
                 <Download className="h-4 w-4 text-primary" /> Export Data
               </button>
@@ -56,32 +80,35 @@ function AjuanListPage() {
               {exportOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
-                  <div className="absolute right-0 top-full z-20 mt-2 w-72 origin-top-right animate-in fade-in zoom-in-95 rounded-2xl border border-slate-200 bg-white p-3 shadow-elevated">
-                    <div className="mb-2 px-2 pt-1 pb-2 border-b border-slate-100">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pilih Format Laporan</p>
+                  <div className="absolute right-0 top-full z-20 mt-2 w-72 origin-top-right animate-in fade-in zoom-in-95 rounded-2xl border border-border bg-card p-3 shadow-elevated">
+                    <div className="mb-2 px-2 pt-1 pb-2 border-b border-border">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Pilih Format Laporan</p>
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <p className="mb-1.5 px-2 text-xs font-bold text-slate-800">Laporan Rekapitulasi (.csv / .xls)</p>
+                        <p className="mb-1.5 px-2 text-xs font-bold text-foreground">Laporan Rekapitulasi (.csv / .xls)</p>
                         <div className="grid grid-cols-2 gap-1.5">
                           <button onClick={() => setExportOpen(false)} className="flex items-center justify-center rounded-lg bg-emerald-50 py-2 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors">Excel (.xlsx)</button>
                           <button onClick={() => setExportOpen(false)} className="flex items-center justify-center rounded-lg bg-blue-50 py-2 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors">Data (.csv)</button>
                         </div>
                       </div>
                       <div>
-                        <p className="mb-1.5 px-2 text-xs font-bold text-slate-800">Dokumen Cetak (.pdf)</p>
-                        <button onClick={() => setExportOpen(false)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-50 py-2.5 text-[11px] font-bold text-rose-700 hover:bg-rose-100 transition-colors">
-                          <FileText className="h-3.5 w-3.5" /> Download PDF (Resmi)
-                        </button>
+                        <p className="mb-1.5 px-2 text-xs font-bold text-foreground">Laporan Rekapitulasi (.csv / .xls)</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button onClick={() => setExportOpen(false)} className="flex items-center justify-center rounded-lg bg-emerald-50 py-2 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors">Excel (.xlsx)</button>
+                          <button onClick={() => setExportOpen(false)} className="flex items-center justify-center rounded-lg bg-blue-50 py-2 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors">Data (.csv)</button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </>
               )}
             </div>
-            <Link to="/ajuan/baru" className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-soft transition-all hover:bg-primary/90 hover:scale-105 active:scale-95">
-              <Plus className="h-4 w-4" /> Buat Ajuan
-            </Link>
+            {role !== "approver" && (
+              <Link to="/ajuan/baru" className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-soft transition-all hover:bg-primary/90 hover:scale-105 active:scale-95">
+                <Plus className="h-4 w-4" /> Buat Ajuan
+              </Link>
+            )}
           </div>
         }
       />
@@ -143,9 +170,26 @@ function AjuanListPage() {
                   <td className="px-4 py-3 text-right font-semibold">{formatRupiah(Number(a.total))}</td>
                   <td className="px-4 py-3"><StatusBadge className={statusBadgeClass[a.status]}>{statusLabel[a.status]}</StatusBadge></td>
                   <td className="px-4 py-3 text-right">
-                    <Link to="/ajuan/$id" params={{ id: a.id }} className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-semibold hover:bg-secondary">
-                      <Eye className="h-3.5 w-3.5" /> Detail
-                    </Link>
+                    <div className="flex justify-end gap-2">
+                      <Link to="/ajuan/$id" params={{ id: a.id }} className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-semibold hover:bg-secondary" title="Detail">
+                        <Eye className="h-3.5 w-3.5" />
+                        <span className="hidden md:inline">Detail</span>
+                      </Link>
+                      
+                      {role === "pengaju" && (a.status === "menunggu" || a.status === "draft") && (
+                        <Link to="/ajuan/$id" params={{ id: a.id }} className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-semibold hover:bg-secondary text-amber-600" title="Edit">
+                          <Edit className="h-3.5 w-3.5" />
+                        </Link>
+                      )}
+
+                      <button 
+                        onClick={() => handleDelete(a)}
+                        className="inline-flex h-8 items-center gap-1 rounded-md border border-destructive/20 bg-destructive/5 px-2.5 text-xs font-semibold text-destructive hover:bg-destructive/10"
+                        title="Hapus"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

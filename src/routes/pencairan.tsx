@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { formatRupiah } from "@/lib/utils";
-import { useAjuanList, useCreatePencairan } from "@/lib/queries";
+import { useAjuanList, useCreatePencairan, usePencairan, useDeletePencairan } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
-import { Search, Wallet, CheckCircle2, Upload, X, Building2, User, Calendar, Loader2 } from "lucide-react";
+import { Search, Wallet, CheckCircle2, Upload, X, Building2, User, Calendar, Loader2, Trash2, History } from "lucide-react";
 import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 
@@ -17,8 +17,11 @@ const banks = ["Bank Syariah Indonesia (BSI)", "Bank Muamalat", "Bank Mandiri", 
 
 function PencairanPage() {
   const { data: ajuanData = [] } = useAjuanList();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const create = useCreatePencairan();
+  const { data: history = [], isLoading: loadingHistory } = usePencairan();
+  const deletePc = useDeletePencairan();
+  const [activeTab, setActiveTab] = useState<"proses" | "riwayat">("proses");
   const disetujui = useMemo(() => ajuanData.filter(a => a.status === "disetujui" || a.status === "dicairkan"), [ajuanData]);
   const [q, setQ] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -58,8 +61,18 @@ function PencairanPage() {
     <>
       <PageHeader title="Pencairan Dana" description="Proses pencairan untuk ajuan yang telah disetujui" />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
+      <div className="mb-6 flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-soft">
+        <button onClick={() => setActiveTab("proses")} className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold ${activeTab === "proses" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}>
+          <Wallet className="h-4 w-4" /> Proses Pencairan
+        </button>
+        <button onClick={() => setActiveTab("riwayat")} className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold ${activeTab === "riwayat" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}>
+          <History className="h-4 w-4" /> Riwayat Pencairan
+        </button>
+      </div>
+
+      {activeTab === "proses" ? (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-1">
           <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
             <div className="relative mb-3">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -129,20 +142,20 @@ function PencairanPage() {
                           <button onClick={() => { setBuktiPreview(null); setBuktiFile(null); }} className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-soft"><X className="h-4 w-4" /></button>
                         </div>
                       ) : (
-                        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-slate-50 p-6 text-center transition-all hover:bg-slate-100/80">
+                        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-secondary/30 p-6 text-center transition-all hover:bg-secondary/50">
                           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
                             <Upload className="h-5 w-5" />
                           </div>
                           <div className="space-y-1">
-                            <p className="text-sm font-bold text-slate-700">Pilih Dokumen Anggaran</p>
-                            <p className="text-[11px] text-slate-500">Format PDF, PNG atau JPG (Maks. 10MB)</p>
+                            <p className="text-sm font-bold text-foreground">Pilih Dokumen Anggaran</p>
+                            <p className="text-[11px] text-muted-foreground">Format PDF, PNG atau JPG (Maks. 10MB)</p>
                           </div>
                           <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setBuktiFile(f); setBuktiPreview(URL.createObjectURL(f)); } }} />
                         </label>
                       )}
                     </div>
                   </div>
-                  <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-6">
+                  <div className="mt-6 flex justify-end gap-2 border-t border-border pt-6">
                     <button onClick={submit} disabled={busy} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-soft transition-all hover:bg-primary/90 hover:scale-[1.01] active:scale-95 disabled:opacity-50">
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />} 
                       Konfirmasi & Selesaikan Pencairan
@@ -158,6 +171,62 @@ function PencairanPage() {
           )}
         </div>
       </div>
+      ) : (
+        <div className="rounded-2xl border border-border bg-card shadow-soft overflow-hidden">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-secondary/50 text-muted-foreground">
+              <tr className="uppercase text-[10px] font-black tracking-widest">
+                <th className="px-4 py-3">Kode / Judul</th>
+                <th className="px-4 py-3">Tujuan Transfer</th>
+                <th className="px-4 py-3 text-right">Jumlah</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Tanggal</th>
+                {role === "admin" && <th className="px-4 py-3 text-right">Aksi</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {loadingHistory ? (
+                <tr><td colSpan={role === "admin" ? 6 : 5} className="p-12 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></td></tr>
+              ) : history.length === 0 ? (
+                <tr><td colSpan={role === "admin" ? 6 : 5} className="p-12 text-center text-muted-foreground">Belum ada riwayat pencairan.</td></tr>
+              ) : history.map(h => (
+                <tr key={h.id} className="hover:bg-secondary/30 transition-colors">
+                  <td className="px-4 py-3">
+                    <p className="font-mono text-xs font-semibold">{h.kode}</p>
+                    <p className="font-medium truncate max-w-[200px]">{h.judul}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold">{h.bank}</p>
+                    <p className="text-xs text-muted-foreground">{h.no_rekening} - {h.nama_pemilik}</p>
+                  </td>
+                  <td className="px-4 py-3 text-right font-bold text-primary">{formatRupiah(Number(h.jumlah))}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${h.status === "selesai" ? "bg-success/10 text-success" : "bg-info/10 text-info"}`}>
+                      {h.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(h.created_at).toLocaleDateString("id-ID")}</td>
+                  {role === "admin" && (
+                    <td className="px-4 py-3 text-right">
+                      <button 
+                        onClick={() => {
+                          if (confirm(`Batalkan pencairan untuk ${h.kode}? Status ajuan akan dikembalikan ke 'Disetujui'.`)) {
+                            deletePc.mutate(h.id);
+                          }
+                        }}
+                        className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
+                        title="Hapus / Batalkan Pencairan"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }

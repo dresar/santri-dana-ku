@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
 import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
-import { useAjuanList, type AjuanStatus } from "@/lib/queries";
+import { useAjuanList, type StatusAjuan, type Ajuan } from "@/lib/queries";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
 import { Download, FileText, FileSpreadsheet, FileType2, ChevronDown, Calendar } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -16,10 +16,28 @@ function LaporanPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [from, setFrom] = useState("2025-01-01");
   const [to, setTo] = useState("2025-12-31");
-  const [status, setStatus] = useState<"all" | AjuanStatus>("all");
+  const [status, setStatus] = useState<"all" | StatusAjuan>("all");
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => setIsMounted(true), []);
-  const { data: ajuanData = [] } = useAjuanList();
+  const { data: ajuanRaw = [] } = useAjuanList();
+  const ajuanData: Ajuan[] = Array.isArray(ajuanRaw) ? ajuanRaw : [];
+
+  const exportCSV = () => {
+    const token = localStorage.getItem("auth_token");
+    const url = "/api/laporan/export";
+    const a = document.createElement("a");
+    a.href = url;
+    a.setAttribute("download", "");
+    // pass token via query for file download
+    fetch(url, { headers: { Authorization: `Bearer ${token ?? ""}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const u = URL.createObjectURL(blob);
+        a.href = u;
+        a.click();
+        URL.revokeObjectURL(u);
+      });
+  };
 
   const filtered = useMemo(() => ajuanData.filter(a => {
     if (status !== "all" && a.status !== status) return false;
@@ -56,9 +74,9 @@ function LaporanPage() {
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
                 <div className="absolute right-0 top-full z-20 mt-2 w-52 animate-fade-in rounded-xl border border-border bg-popover p-1.5 shadow-elevated">
-                  <ExportItem icon={FileSpreadsheet} label="Export Excel (.xlsx)" />
-                  <ExportItem icon={FileType2} label="Export CSV (.csv)" />
-                  <ExportItem icon={FileText} label="Export PDF (.pdf)" />
+                  <ExportItem icon={FileSpreadsheet} label="Export Excel (.xlsx)" onClick={exportCSV} />
+                  <ExportItem icon={FileType2} label="Export CSV (.csv)" onClick={exportCSV} />
+                  <ExportItem icon={FileText} label="Export PDF (.pdf)" onClick={exportCSV} />
                 </div>
               </>
             )}
@@ -112,7 +130,7 @@ function LaporanPage() {
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</label>
-            <select value={status} onChange={e => setStatus(e.target.value as "all" | AjuanStatus)} className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring">
+            <select value={status} onChange={e => setStatus(e.target.value as "all" | StatusAjuan)} className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring">
               <option value="all">Semua status</option>
               <option value="menunggu">Menunggu</option>
               <option value="disetujui">Disetujui</option>
@@ -170,9 +188,9 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-function ExportItem({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+function ExportItem({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick?: () => void }) {
   return (
-    <button className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm hover:bg-secondary">
+    <button onClick={onClick} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm hover:bg-secondary">
       <Icon className="h-4 w-4 text-primary" /> {label}
     </button>
   );

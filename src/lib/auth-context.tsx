@@ -46,10 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { Authorization: `Bearer ${jwt}` },
       });
       if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-        setProfile(data.user); // In our Hono server, user returned from /me is the profile
-        setRole(data.role);
+        const json = await res.json();
+        const payload = json.data || json;
+        setUser(payload.user);
+        setProfile(payload.user); // In our Hono server, user returned from /me is the profile
+        setRole(payload.role);
       } else {
         signOut();
       }
@@ -75,19 +76,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      const json = await res.json();
       if (res.ok) {
-        localStorage.setItem("auth_token", data.token);
-        setToken(data.token);
-        setUser(data.user);
-        setRole(data.role);
+        const payload = json.data || json;
+        localStorage.setItem("auth_token", payload.token);
+        setToken(payload.token);
+        setUser(payload.user);
+        setRole(payload.role);
         return { error: null };
       }
-      return { error: data.error || "Login failed" };
+      return { error: json.error || "Login failed" };
     } catch (err: any) {
       return { error: err.message };
     }
   };
+
 
   const signUp = async (email: string, password: string, meta: any) => {
     try {
@@ -96,15 +99,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, ...meta }),
       });
-      const data = await res.json();
+      const json = await res.json();
       if (res.ok) {
-        localStorage.setItem("auth_token", data.token);
-        setToken(data.token);
-        setUser(data.user);
-        setRole("pengaju");
+        const payload = json.data || json;
+        localStorage.setItem("auth_token", payload.token);
+        setToken(payload.token);
+        setUser(payload.user);
+        setRole(payload.role || "pengaju");
         return { error: null };
       }
-      return { error: data.error || "Signup failed" };
+      return { error: json.error || "Signup failed" };
     } catch (err: any) {
       return { error: err.message };
     }

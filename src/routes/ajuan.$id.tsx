@@ -1,28 +1,173 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
 import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
-import { useAjuanDetail } from "@/lib/queries";
-import { ArrowLeft, Printer, Download, Calendar, User, Building2, FileText, Clock, Loader2 } from "lucide-react";
+import { useAjuanDetail, useAnalyzeAjuan, useApproval, useSettings, useDeleteAjuan } from "@/lib/queries";
+import { useAuth } from "@/lib/auth-context";
+import { ArrowLeft, Printer, Download, Calendar, User, Building2, FileText, Clock, Loader2, Bot, Sparkles, X, Check, Mail, Phone, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
+import jsPDF from "jspdf";
+import { toPng } from "html-to-image";
 
 export const Route = createFileRoute("/ajuan/$id")({
   head: () => ({ meta: [{ title: "Detail Ajuan — E-Budgeting Pesantren" }] }),
   component: DetailAjuanPage,
 });
 
+const DEFAULT_SETTINGS = {
+  nama: "Pesantren Modern Raudhatussalam Mahato",
+  alamat: "Jl. Pesantren No. 01, Mahato, Riau",
+  email: "info@raudhatussalam.sch.id",
+  kontak: "0812-3456-7890",
+  logo_url: null,
+  ttd_url: null,
+  show_ttd: true
+};
+
 function DetailAjuanPage() {
   const { id } = Route.useParams();
-  const { data, isLoading } = useAjuanDetail(id);
+  const { data, isLoading, isError, error } = useAjuanDetail(id);
 
-  if (isLoading) return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-  if (!data?.ajuan) {
+  const [showAi, setShowAi] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
+  const [catatanApproval, setCatatanApproval] = useState("");
+  const analyze = useAnalyzeAjuan();
+  const approval = useApproval();
+  const deleteAjuan = useDeleteAjuan();
+  const { role: userRole, userId: currentUserId } = useAuth();
+  const { data: settings } = useSettings();
+  const router = useRouter();
+
+  if (isLoading) return (
+    <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
+      <Loader2 className="h-10 w-10 animate-spin text-primary" />
+      <p className="text-sm font-medium text-muted-foreground">Memuat detail ajuan...</p>
+    </div>
+  );
+
+  if (isError) return (
+    <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+        <X className="h-8 w-8" />
+      </div>
+      <h2 className="text-xl font-bold">Gagal memuat data</h2>
+      <p className="text-sm text-muted-foreground max-w-xs">{(error as Error)?.message || "Terjadi kesalahan saat mengambil data ajuan."}</p>
+      <Link to="/ajuan" className="mt-2 text-sm font-bold text-primary hover:underline">Kembali ke Daftar</Link>
+    </div>
+  );
+
+  if (!data) {
     throw notFound();
   }
-  const ajuan = data.ajuan;
+  const ajuan = data;
+
+  const handleAnalyze = async () => {
+    setShowAi(true);
+    if (aiResult) return; // already analyzed
+    try {
+      const res = await analyze.mutateAsync(id);
+      setAiResult(res);
+    } catch (err: any) {
+      setAiResult(`Error: ${err.message}`);
+    }
+  };
+
+  const isApprover = userRole === "admin" || userRole === "approver";
+  const canApprove = isApprover && ajuan.status === "menunggu";
+
+  const handleApprove = async (aksi: "disetujui" | "ditolak") => {
+    try {
+      await approval.mutateAsync({ ajuanId: id, aksi, catatan: catatanApproval || undefined });
+      toast.success(aksi === "disetujui" ? "Ajuan disetujui" : "Ajuan ditolak");
+    } catch (e: any) {
+      toast.error("Gagal", { description: e.message });
+    }
+  };
+
+  const handleDelete = async () => {
+    const isOwner = ajuan.pengaju_id === currentUserId;
+    const isPrivileged = userRole === "admin" || userRole === "approver";
+    
+    if (!isOwner && !isPrivileged) {
+      toast.error("Anda tidak memiliki akses untuk menghapus ajuan ini.");
+      return;
+    }
+
+    let reason = "";
+    if (isPrivileged) {
+      const input = prompt(`Masukkan alasan penghapusan untuk ajuan ${ajuan.kode}:`, "Kesalahan data / Pembatalan operasional");
+      if (input === null) return;
+      reason = input;
+    } else {
+      if (!confirm(`Apakah Anda yakin ingin menghapus ajuan ${ajuan.kode}?`)) return;
+    }
+
+    try {
+      await deleteAjuan.mutateAsync({ id, reason });
+      toast.success("Ajuan berhasil dihapus");
+      router.navigate({ to: "/ajuan" });
+    } catch (err: any) {
+      toast.error("Gagal menghapus", { description: err.message });
+    }
+  };
+
+  const handlePrint = () => {
+    const originalTitle = document.title;
+    document.title = `Ajuan_${ajuan.kode}_${ajuan.judul.replace(/\s+/g, '_')}`;
+    window.print();
+    document.title = originalTitle;
+  };
+
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById("print-document");
+    if (!element) return;
+    
+    toast.info("Sedang menyiapkan file PDF...", { duration: 2000 });
+    
+    try {
+      // Temporarily show the element for capture
+      element.classList.remove("hidden");
+      element.classList.add("block");
+      element.style.position = "static";
+      
+      const dataUrl = await toPng(element, {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+      });
+      
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      
+      // Calculate height based on aspect ratio
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise(resolve => img.onload = resolve);
+      const pdfHeight = (img.height * pdfWidth) / img.width;
+      
+      pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Ajuan_${ajuan.kode}.pdf`);
+      
+      // Re-hide the element
+      element.classList.remove("block");
+      element.classList.add("hidden");
+      element.style.position = "fixed";
+      
+      toast.success("PDF berhasil diunduh");
+    } catch (err: any) {
+      console.error("PDF Error:", err);
+      toast.error("Gagal membuat PDF", { description: "Terjadi kesalahan teknis saat merender dokumen." });
+      // Clean up on error
+      element.classList.remove("block");
+      element.classList.add("hidden");
+      element.style.position = "fixed";
+    }
+  };
 
   return (
     <>
-      <Link to="/ajuan" className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground">
+      <Link to="/ajuan" className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground print:hidden">
         <ArrowLeft className="h-4 w-4" /> Kembali ke daftar ajuan
       </Link>
       <PageHeader
@@ -30,29 +175,78 @@ function DetailAjuanPage() {
         description={`Kode ajuan: ${ajuan.kode}`}
         actions={
           <>
-            <button onClick={() => window.print()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold hover:bg-secondary"><Printer className="h-4 w-4" /> Cetak</button>
-            <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold hover:bg-secondary"><Download className="h-4 w-4" /> Unduh PDF</button>
+            <button onClick={handleAnalyze} className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-50 px-4 text-sm font-semibold text-indigo-600 hover:bg-indigo-100 border border-indigo-200 print:hidden">
+              <Bot className="h-4 w-4" /> Analisis AI
+            </button>
+            <button onClick={handlePrint} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold hover:bg-secondary print:hidden"><Printer className="h-4 w-4" /> Cetak</button>
+            <button onClick={handleDownloadPdf} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90 print:hidden"><Download className="h-4 w-4" /> Unduh PDF (Direct)</button>
+            {(userRole === "admin" || userRole === "approver" || ajuan.pengaju_id === currentUserId) && (
+              <button 
+                onClick={handleDelete} 
+                disabled={deleteAjuan.isPending}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 text-sm font-semibold text-destructive hover:bg-destructive/10 print:hidden"
+              >
+                {deleteAjuan.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Hapus
+              </button>
+            )}
           </>
         }
       />
 
+      {showAi && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl max-h-[85vh] flex flex-col animate-fade-in rounded-2xl border border-border bg-card shadow-elevated">
+            <div className="flex items-center justify-between border-b border-border p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600"><Bot className="h-5 w-5" /></div>
+                <div>
+                  <h3 className="font-bold">Analisis AI (Gemini 2.5)</h3>
+                  <p className="text-xs text-muted-foreground">Evaluasi kewajaran harga & rencana belanja</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAi(false)} className="rounded-lg p-1.5 hover:bg-secondary"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {analyze.isPending ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <Sparkles className="mb-4 h-8 w-8 animate-pulse text-indigo-400" />
+                  <p className="text-sm font-semibold">AI sedang menganalisis dokumen ajuan...</p>
+                  <p className="text-xs">Ini mungkin memakan waktu beberapa detik.</p>
+                </div>
+              ) : (
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  {typeof aiResult === 'string' ? (
+                    <div className="whitespace-pre-wrap leading-relaxed">{aiResult}</div>
+                  ) : (
+                    <pre className="whitespace-pre-wrap text-[13px] bg-secondary/30 p-4 rounded-xl border border-border overflow-x-auto">
+                      {JSON.stringify(aiResult, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="space-y-8 lg:col-span-2">
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-elevated">
-            <div className="border-b border-slate-100 bg-slate-50/50 p-8">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-elevated">
+            <div className="border-b border-border bg-secondary/30 p-5 md:p-8">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Status Pengajuan</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Status Pengajuan</p>
                   <div className="inline-flex"><StatusBadge className={`${statusBadgeClass[ajuan.status]} px-4 py-2 text-xs font-bold uppercase`}>{statusLabel[ajuan.status]}</StatusBadge></div>
                 </div>
                 <div className="text-left md:text-right">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Nominal Anggaran</p>
-                  <p className="text-4xl font-black tracking-tighter text-primary">{formatRupiah(Number(ajuan.total))}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Total Nominal Anggaran</p>
+                  <p className="text-3xl md:text-4xl font-black tracking-tighter text-primary">{formatRupiah(Number(ajuan.total))}</p>
                 </div>
               </div>
             </div>
 
-            <div className="p-8">
+            <div className="p-5 md:p-8">
               <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
                 <InfoItem icon={User} label="Nama Pengaju" value={ajuan.pengaju_nama ?? "—"} />
                 <InfoItem icon={Building2} label="Bidang / Instansi" value={ajuan.instansi} />
@@ -60,41 +254,47 @@ function DetailAjuanPage() {
                 <InfoItem icon={FileText} label="Nomor Referensi" value={ajuan.kode} />
               </div>
 
-              <div className="mt-10 space-y-3">
+              <div className="mt-8 md:mt-10 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="h-1 w-8 rounded-full bg-primary/30" />
-                  <p className="text-xs font-black uppercase tracking-widest text-slate-500">Rencana Penggunaan Dana</p>
+                  <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-muted-foreground">Rencana Penggunaan Dana</p>
                 </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/30 p-6 leading-relaxed text-slate-700 shadow-inner">
+                <div className="rounded-2xl border border-border bg-secondary/10 p-4 md:p-6 leading-relaxed text-foreground shadow-inner text-sm md:text-base">
                   {ajuan.rencana_penggunaan}
                 </div>
               </div>
 
               {ajuan.catatan && (
-                <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/50 p-6">
-                  <div className="mb-2 flex items-center gap-2 text-amber-700">
+                <div className="mt-6 rounded-2xl border border-warning/20 bg-warning/5 p-6">
+                  <div className="mb-2 flex items-center gap-2 text-warning">
                     <Clock className="h-4 w-4" />
-                    <p className="text-xs font-bold uppercase tracking-wider">Catatan Peninjauan</p>
+                    <p className="text-[10px] font-black uppercase tracking-wider">Catatan Peninjauan</p>
                   </div>
-                  <p className="text-sm text-amber-900">{ajuan.catatan}</p>
+                  <p className="text-sm text-foreground/90">{ajuan.catatan}</p>
                 </div>
               )}
 
-              {(ajuan.bukti_url || ajuan.dokumen_anggaran_url) && (
-                <div className="mt-10">
-                  <div className="mb-4 flex items-center gap-2">
+              {/* Lampiran */}
+              {(ajuan.gambar_url || ajuan.bukti_url) && (
+                <div className="mt-8 space-y-4">
+                  <div className="flex items-center gap-2">
                     <div className="h-1 w-8 rounded-full bg-primary/30" />
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-500">Lampiran Dokumen / RAB</p>
+                    <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-muted-foreground">Lampiran Pendukung</p>
                   </div>
-                  <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2 transition-all hover:border-primary/30">
-                    <img 
-                      src={ajuan.bukti_url || "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&q=80&w=800"} 
-                      alt="Lampiran" 
-                      className="max-h-[400px] w-full rounded-xl object-cover grayscale-[0.2] transition-all group-hover:grayscale-0" 
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40 opacity-0 transition-opacity group-hover:opacity-100">
-                      <a href={ajuan.bukti_url ?? "#"} target="_blank" rel="noreferrer" className="rounded-xl bg-white px-6 py-3 text-sm font-bold shadow-xl hover:scale-105 active:scale-95 transition-transform">Lihat Dokumen Asli</a>
-                    </div>
+                  
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {(ajuan.gambar_url || ajuan.bukti_url) && (
+                      <div className="group relative overflow-hidden rounded-2xl border border-border bg-secondary/30 p-2 transition-all hover:border-primary/30">
+                        <img 
+                          src={ajuan.gambar_url || ajuan.bukti_url || "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&q=80&w=800"} 
+                          alt="Lampiran Gambar" 
+                          className="max-h-[300px] w-full rounded-xl object-cover grayscale-[0.2] transition-all group-hover:grayscale-0" 
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-background/60 opacity-0 transition-opacity group-hover:opacity-100">
+                          <a href={ajuan.gambar_url || ajuan.bukti_url || "#"} target="_blank" rel="noreferrer" className="rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-xl hover:scale-105 active:scale-95 transition-transform">Lihat Gambar Penuh</a>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -136,6 +336,40 @@ function DetailAjuanPage() {
               </table>
             </div>
           </div>
+          
+          {canApprove && (
+            <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 shadow-soft">
+              <h3 className="mb-2 text-lg font-bold text-primary flex items-center gap-2">
+                <Check className="h-5 w-5" /> Keputusan Approval
+              </h3>
+              <p className="mb-4 text-sm text-muted-foreground leading-relaxed">Anda memiliki wewenang untuk menyetujui atau menolak ajuan ini. Tambahkan catatan jika perlu sebelum memproses.</p>
+              <textarea 
+                value={catatanApproval} 
+                onChange={e => setCatatanApproval(e.target.value)} 
+                rows={3} 
+                placeholder="Tuliskan catatan atau alasan di sini (opsional)..." 
+                className="mb-4 w-full rounded-xl border border-input bg-background p-4 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10" 
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <button 
+                  onClick={() => handleApprove("disetujui")} 
+                  disabled={approval.isPending} 
+                  className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-6 font-bold text-primary-foreground shadow-lg hover:bg-primary/90 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {approval.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
+                  Setujui Ajuan
+                </button>
+                <button 
+                  onClick={() => handleApprove("ditolak")} 
+                  disabled={approval.isPending} 
+                  className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-destructive/20 bg-destructive/10 px-6 font-bold text-destructive hover:bg-destructive/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {approval.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <X className="h-5 w-5" />}
+                  Tolak Ajuan
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <aside className="rounded-2xl border border-border bg-card p-6 shadow-soft">
@@ -156,6 +390,8 @@ function DetailAjuanPage() {
           )}
         </aside>
       </div>
+
+      <PrintLayout ajuan={ajuan} items={data.items} settings={settings || DEFAULT_SETTINGS} />
     </>
   );
 }
@@ -167,6 +403,233 @@ function InfoItem({ icon: Icon, label, value }: { icon: LucideIcon; label: strin
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
         <p className="truncate text-sm font-semibold">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function PrintLayout({ ajuan, items, settings }: { ajuan: any; items: any[]; settings: any }) {
+  const styles = {
+    container: {
+      backgroundColor: '#ffffff',
+      color: '#000000',
+      padding: '40px',
+      fontFamily: 'serif',
+      lineHeight: '1.5'
+    },
+    header: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '24px',
+      borderBottom: '4px double #000000',
+      paddingBottom: '24px',
+      marginBottom: '32px'
+    },
+    logo: {
+      height: '96px',
+      width: '96px',
+      objectFit: 'contain' as const
+    },
+    headerInfo: {
+      flex: 1,
+      textAlign: 'center' as const
+    },
+    title: {
+      fontSize: '24px',
+      fontWeight: 'bold',
+      textTransform: 'uppercase' as const,
+      margin: 0
+    },
+    address: {
+      fontSize: '14px',
+      fontStyle: 'italic',
+      margin: '4px 0'
+    },
+    contact: {
+      display: 'flex',
+      justifyContent: 'center',
+      gap: '16px',
+      fontSize: '12px',
+      marginTop: '4px'
+    },
+    docTitle: {
+      textAlign: 'center' as const,
+      marginBottom: '32px'
+    },
+    docTitleH2: {
+      fontSize: '20px',
+      fontWeight: 'bold',
+      textDecoration: 'underline',
+      textTransform: 'uppercase' as const,
+      margin: 0
+    },
+    infoGrid: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '12px',
+      fontSize: '14px',
+      marginBottom: '32px'
+    },
+    infoItem: {
+      display: 'grid',
+      gridTemplateColumns: '120px 1fr'
+    },
+    infoLabel: {
+      fontWeight: 'bold'
+    },
+    sectionTitle: {
+      fontWeight: 'bold',
+      fontSize: '14px',
+      marginBottom: '8px'
+    },
+    rencanaBox: {
+      fontSize: '14px',
+      padding: '16px',
+      border: '1px solid #000000',
+      borderRadius: '8px',
+      marginBottom: '32px'
+    },
+    table: {
+      width: '100%',
+      fontSize: '14px',
+      borderCollapse: 'collapse' as const,
+      border: '1px solid #000000',
+      marginBottom: '40px'
+    },
+    th: {
+      border: '1px solid #000000',
+      padding: '8px 12px',
+      textAlign: 'left' as const,
+      backgroundColor: '#f1f5f9'
+    },
+    td: {
+      border: '1px solid #000000',
+      padding: '8px 12px'
+    },
+    tfoot: {
+      fontWeight: 'bold',
+      backgroundColor: '#f8fafc'
+    },
+    signatureSection: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginTop: '48px',
+      fontSize: '14px'
+    },
+    signatureBox: {
+      textAlign: 'center' as const,
+      width: '256px'
+    },
+    ttdImage: {
+      height: '80px',
+      objectFit: 'contain' as const,
+      marginBottom: '8px'
+    },
+    footer: {
+      position: 'absolute' as const,
+      bottom: '40px',
+      left: '40px',
+      right: '40px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      fontSize: '10px',
+      color: '#94a3b8',
+      borderTop: '1px solid #f1f5f9',
+      paddingTop: '16px'
+    }
+  };
+
+  return (
+    <div id="print-document" className="hidden print:block fixed inset-0" style={styles.container}>
+      {/* Kop Surat */}
+      <div style={styles.header}>
+        {settings.logo_url && <img src={settings.logo_url} style={styles.logo} alt="Logo" />}
+        <div style={styles.headerInfo}>
+          <h1 style={styles.title}>{settings.nama}</h1>
+          <p style={styles.address}>{settings.alamat}</p>
+          <div style={styles.contact}>
+            <span>{settings.email}</span>
+            <span>{settings.kontak}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Judul Dokumen */}
+      <div style={styles.docTitle}>
+        <h2 style={styles.docTitleH2}>SURAT PENGAJUAN ANGGARAN</h2>
+        <p style={{ fontFamily: 'monospace', fontSize: '14px', marginTop: '4px' }}>Nomor: {ajuan.kode}</p>
+      </div>
+
+      {/* Informasi Utama */}
+      <div style={styles.infoGrid}>
+        <div style={styles.infoItem}><span style={styles.infoLabel}>Nama Pengaju</span><span>: {ajuan.pengaju_nama}</span></div>
+        <div style={styles.infoItem}><span style={styles.infoLabel}>Bidang/Unit</span><span>: {ajuan.instansi}</span></div>
+        <div style={styles.infoItem}><span style={styles.infoLabel}>Tanggal</span><span>: {new Date(ajuan.created_at).toLocaleDateString("id-ID", { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
+        <div style={styles.infoItem}><span style={styles.infoLabel}>Perihal</span><span>: {ajuan.judul}</span></div>
+      </div>
+
+      {/* Rencana Penggunaan */}
+      <div>
+        <h3 style={styles.sectionTitle}>Rencana Penggunaan Dana:</h3>
+        <p style={styles.rencanaBox}>{ajuan.rencana_penggunaan}</p>
+      </div>
+
+      {/* Tabel Rincian */}
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={{ ...styles.th, width: '40px', textAlign: 'center' }}>#</th>
+            <th style={styles.th}>Deskripsi Kebutuhan</th>
+            <th style={{ ...styles.th, width: '64px', textAlign: 'center' }}>Qty</th>
+            <th style={{ ...styles.th, width: '80px' }}>Satuan</th>
+            <th style={{ ...styles.th, width: '128px', textAlign: 'right' }}>Harga Satuan</th>
+            <th style={{ ...styles.th, width: '128px', textAlign: 'right' }}>Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it, idx) => (
+            <tr key={it.id}>
+              <td style={{ ...styles.td, textAlign: 'center' }}>{idx + 1}</td>
+              <td style={styles.td}>{it.nama_item}</td>
+              <td style={{ ...styles.td, textAlign: 'center' }}>{it.qty}</td>
+              <td style={styles.td}>{it.satuan}</td>
+              <td style={{ ...styles.td, textAlign: 'right' }}>{formatRupiah(Number(it.harga))}</td>
+              <td style={{ ...styles.td, textAlign: 'right' }}>{formatRupiah(Number(it.subtotal))}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr style={styles.tfoot}>
+            <td colSpan={5} style={{ ...styles.td, textAlign: 'right' }}>TOTAL ANGGARAN</td>
+            <td style={{ ...styles.td, textAlign: 'right' }}>{formatRupiah(Number(ajuan.total))}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      {/* Tanda Tangan */}
+      <div style={styles.signatureSection}>
+        <div style={styles.signatureBox}>
+          <p style={{ marginBottom: '64px', textTransform: 'uppercase', fontWeight: 'bold' }}>Pengaju,</p>
+          <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>{ajuan.pengaju_nama}</p>
+          <p style={{ fontSize: '12px' }}>{ajuan.instansi}</p>
+        </div>
+        <div style={styles.signatureBox}>
+          <p style={{ marginBottom: '8px', textTransform: 'uppercase', fontWeight: 'bold' }}>Mengetahui/Menyetujui,</p>
+          <div style={{ height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '8px' }}>
+            {settings.show_ttd && settings.ttd_url && (
+              <img src={settings.ttd_url} style={styles.ttdImage} alt="TTD" />
+            )}
+          </div>
+          <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>Pimpinan Pesantren</p>
+          <p style={{ fontSize: '12px' }}>SantriDanaKu System</p>
+        </div>
+      </div>
+
+      {/* Footer Print */}
+      <div style={styles.footer}>
+        <p>Dicetak otomatis melalui Sistem E-Budgeting SantriDanaKu</p>
+        <p>{new Date().toLocaleString("id-ID")}</p>
       </div>
     </div>
   );

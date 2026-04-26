@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
 import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
-import { useAjuanList, useAuditLog } from "@/lib/queries";
+import { useAjuanList, useAuditLog, type Ajuan, type AuditLog } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
 import { ArrowUpRight, FileText, Wallet, Clock, CheckCircle2, XCircle, TrendingUp, Plus, Send } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -12,12 +12,14 @@ export const Route = createFileRoute("/")({
   component: DashboardPage,
 });
 
-function DashboardPage() {
+function DashboardAdmin() {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => setIsMounted(true), []);
   const { profile } = useAuth();
-  const { data: ajuan = [], isLoading } = useAjuanList();
-  const { data: audit = [] } = useAuditLog();
+  const { data: ajuanRaw = [], isLoading } = useAjuanList();
+  const { data: auditRaw = [] } = useAuditLog();
+  const ajuan: Ajuan[] = Array.isArray(ajuanRaw) ? ajuanRaw : [];
+  const audit: AuditLog[] = Array.isArray(auditRaw) ? auditRaw : [];
 
   const stats = useMemo(() => {
     const getStats = (status: string) => {
@@ -144,7 +146,7 @@ function DashboardPage() {
           </div>
           <div className="h-72 w-full min-h-[300px]">
             {isMounted && (
-              <ResponsiveContainer width="100%" height="100%" aspect={2.5}>
+              <ResponsiveContainer width="100%" height="100%" aspect={2.5} minWidth={0} minHeight={0}>
                 <AreaChart data={grafikBulanan}>
                   <defs>
                     <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
@@ -176,7 +178,7 @@ function DashboardPage() {
               <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Belum ada data</div>
             ) : (
               isMounted && (
-                <ResponsiveContainer width="100%" height="100%" aspect={1.2}>
+                <ResponsiveContainer width="100%" height="100%" aspect={1.2} minWidth={0} minHeight={0}>
                   <BarChart data={grafikInstansi} layout="vertical" margin={{ left: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
                     <XAxis type="number" hide />
@@ -244,4 +246,221 @@ function DashboardPage() {
       </div>
     </>
   );
+}
+
+function DashboardApprover() {
+  const { profile } = useAuth();
+  const { data: ajuanRaw = [], isLoading } = useAjuanList();
+  const ajuan: Ajuan[] = Array.isArray(ajuanRaw) ? ajuanRaw : [];
+
+  const stats = useMemo(() => {
+    const menunggu = ajuan.filter(a => a.status === "menunggu");
+    return {
+      menunggu: { count: menunggu.length, total: menunggu.reduce((s, a) => s + Number(a.total || 0), 0) },
+      disetujui: ajuan.filter(a => a.status === "disetujui").length,
+      ditolak: ajuan.filter(a => a.status === "ditolak").length,
+    };
+  }, [ajuan]);
+
+  const grafikInstansi = useMemo(() => {
+    const map = new Map<string, number>();
+    ajuan.filter(a => a.status === "disetujui" || a.status === "dicairkan").forEach(a => {
+      map.set(a.instansi, (map.get(a.instansi) ?? 0) + Number(a.total || 0));
+    });
+    return Array.from(map.entries())
+      .map(([instansi, nilai]) => ({ instansi, nilai }))
+      .sort((a, b) => b.nilai - a.nilai)
+      .slice(0, 5);
+  }, [ajuan]);
+
+  return (
+    <>
+      <PageHeader
+        title={`Assalamu'alaikum, ${profile?.nama_lengkap ?? "Pimpinan"}`}
+        description="Ringkasan persetujuan dan penggunaan anggaran pesantren."
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="group relative overflow-hidden rounded-3xl border border-border bg-amber-50 p-5 shadow-soft">
+          <div className="flex items-start justify-between">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100">
+              <Clock className="h-6 w-6 text-amber-600" />
+            </div>
+            <span className="flex h-6 items-center gap-1 rounded-full bg-amber-500/10 px-2 text-[10px] font-black uppercase tracking-wider text-amber-600">Butuh Persetujuan</span>
+          </div>
+          <div className="mt-5">
+            <p className="text-sm font-medium text-amber-800/80">Ajuan Menunggu</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <p className="text-4xl font-black tracking-tight text-amber-900">{isLoading ? "-" : stats.menunggu.count}</p>
+              <p className="text-xs font-bold text-amber-800/60">Berkas</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="group relative overflow-hidden rounded-3xl border border-border bg-emerald-50 p-5 shadow-soft">
+          <div className="flex items-start justify-between">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100"><CheckCircle2 className="h-6 w-6 text-emerald-600" /></div>
+          </div>
+          <div className="mt-5">
+            <p className="text-sm font-medium text-emerald-800/80">Total Disetujui</p>
+            <p className="mt-1 text-3xl font-black tracking-tight text-emerald-900">{isLoading ? "-" : stats.disetujui}</p>
+          </div>
+        </div>
+
+        <div className="group relative overflow-hidden rounded-3xl border border-border bg-rose-50 p-5 shadow-soft">
+          <div className="flex items-start justify-between">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100"><XCircle className="h-6 w-6 text-rose-600" /></div>
+          </div>
+          <div className="mt-5">
+            <p className="text-sm font-medium text-rose-800/80">Total Ditolak</p>
+            <p className="mt-1 text-3xl font-black tracking-tight text-rose-900">{isLoading ? "-" : stats.ditolak}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-semibold">Anggaran Terserap per Bidang</h3>
+          </div>
+          <div className="mt-4 h-64">
+            {grafikInstansi.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Belum ada data disetujui</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <BarChart data={grafikInstansi} layout="vertical" margin={{ left: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="instansi" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={80} />
+                  <Tooltip formatter={(v) => formatRupiah(Number(v))} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                  <Bar dataKey="nilai" fill="#3b82f6" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-soft flex flex-col">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-semibold">Menunggu Persetujuan Anda</h3>
+            <Link to="/approval" className="text-xs font-semibold text-primary hover:underline">Lihat Semua</Link>
+          </div>
+          {stats.menunggu.count === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Semua ajuan telah diproses.</div>
+          ) : (
+            <ul className="space-y-3">
+              {ajuan.filter(a => a.status === "menunggu").slice(0, 4).map(a => (
+                <Link key={a.id} to="/ajuan/$id" params={{ id: a.id }} className="block rounded-lg border border-border p-3 transition-all hover:border-primary/40 hover:bg-secondary/40">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-semibold">{a.judul}</p>
+                    <span className="text-xs font-bold text-amber-600">Menunggu</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">{a.instansi}</p>
+                    <p className="text-xs font-bold text-primary">{formatRupiah(Number(a.total))}</p>
+                  </div>
+                </Link>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DashboardPengaju() {
+  const { profile } = useAuth();
+  const { data: ajuanRaw = [], isLoading } = useAjuanList();
+  const ajuan: Ajuan[] = Array.isArray(ajuanRaw) ? ajuanRaw : [];
+
+  const stats = useMemo(() => {
+    return {
+      total: ajuan.length,
+      menunggu: ajuan.filter(a => a.status === "menunggu").length,
+      disetujui: ajuan.filter(a => a.status === "disetujui" || a.status === "dicairkan").length,
+      ditolak: ajuan.filter(a => a.status === "ditolak").length,
+    };
+  }, [ajuan]);
+
+  return (
+    <>
+      <PageHeader
+        title={`Assalamu'alaikum, ${profile?.nama_lengkap ?? "Pengaju"}`}
+        description="Pantau status ajuan anggaran yang Anda kirimkan."
+      />
+
+      <div className="mb-8 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary to-primary/80 p-8 text-primary-foreground shadow-elevated text-center md:text-left flex flex-col md:flex-row items-center justify-between gap-6">
+        <div>
+          <h2 className="text-2xl font-black">Butuh Anggaran Baru?</h2>
+          <p className="mt-2 text-primary-100 opacity-90 max-w-md text-sm leading-relaxed">
+            Ajukan kebutuhan anggaran bidang Anda dengan mengisi formulir secara detail. Ajuan akan langsung diteruskan ke Pimpinan.
+          </p>
+        </div>
+        <Link to="/ajuan/baru" className="whitespace-nowrap inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-white px-8 text-base font-bold text-primary shadow-lg transition-all hover:scale-105 active:scale-95">
+          <Plus className="h-5 w-5" /> Buat Ajuan Baru
+        </Link>
+      </div>
+
+      <h3 className="mb-4 text-lg font-bold text-foreground">Ringkasan Ajuan Anda</h3>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="rounded-2xl border border-border bg-card p-5 text-center shadow-soft">
+          <p className="text-3xl font-black text-indigo-600">{isLoading ? "-" : stats.total}</p>
+          <p className="mt-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Ajuan</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-5 text-center shadow-soft">
+          <p className="text-3xl font-black text-amber-500">{isLoading ? "-" : stats.menunggu}</p>
+          <p className="mt-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Menunggu</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-5 text-center shadow-soft">
+          <p className="text-3xl font-black text-emerald-500">{isLoading ? "-" : stats.disetujui}</p>
+          <p className="mt-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Disetujui</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-5 text-center shadow-soft">
+          <p className="text-3xl font-black text-rose-500">{isLoading ? "-" : stats.ditolak}</p>
+          <p className="mt-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ditolak</p>
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-2xl border border-border bg-card p-6 shadow-soft max-w-3xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-semibold">Riwayat Terbaru Saya</h3>
+          <Link to="/ajuan" className="text-xs font-semibold text-primary hover:underline">Lihat Semua</Link>
+        </div>
+        {ajuan.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Anda belum pernah membuat ajuan.</p>
+        ) : (
+          <ul className="space-y-3">
+            {ajuan.slice(0, 5).map(a => (
+              <Link key={a.id} to="/ajuan/$id" params={{ id: a.id }} className="flex items-center justify-between gap-4 rounded-xl border border-border p-4 transition-all hover:border-primary/40 hover:bg-secondary/40">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{a.judul}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleDateString("id-ID", { dateStyle: "medium" })}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-sm font-bold text-primary">{formatRupiah(Number(a.total))}</p>
+                  <StatusBadge className={`mt-1 ${statusBadgeClass[a.status]}`}>{statusLabel[a.status]}</StatusBadge>
+                </div>
+              </Link>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
+  );
+}
+
+function DashboardPage() {
+  const { role } = useAuth();
+  
+  if (role === "pengaju") {
+    return <DashboardPengaju />;
+  }
+  
+  if (role === "approver") {
+    return <DashboardApprover />;
+  }
+  
+  // Admin is the default full dashboard
+  return <DashboardAdmin />;
 }
