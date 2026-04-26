@@ -1,4 +1,4 @@
-import app from '../backend/src/index.js';
+import app from '../src/index.js';
 import { serve } from '@hono/node-server';
 
 const server = serve({ fetch: app.fetch, port: 3002 });
@@ -24,8 +24,9 @@ async function runTests() {
   const h = await hit('health', 'GET', '/health');
 
   const login = await hit('login admin', 'POST', '/auth/login', { email: 'admin@example.com', password: 'password123' });
-  if (login.data?.data?.token) {
-    token = login.data.data.token;
+  const loginData = login.data as any;
+  if (loginData?.data?.token) {
+    token = loginData.data.token;
     console.log('   Token obtained ✓');
   }
 
