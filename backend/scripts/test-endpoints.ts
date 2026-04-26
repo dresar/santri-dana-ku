@@ -15,7 +15,7 @@ async function runTests() {
     const res = await fetch(`http://localhost:3002/api${path}`, {
       method, headers, body: body ? JSON.stringify(body) : undefined,
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await res.json().catch(() => ({})) as any;
     const ok = res.status < 400 ? '✅' : '❌';
     console.log(`${ok} [${res.status}] ${method} /api${path} ${data.error ? '— ' + data.error : ''}`);
     return { status: res.status, data };
