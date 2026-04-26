@@ -32,7 +32,7 @@ app.use(
 
 app.use('*', logger());
 app.use('*', prettyJSON());
-app.use('*', auditLogger);
+// app.use('*', auditLogger); // DISABLED FOR DEBUGGING VERCEL 500
 
 // ─── Mount Routes ─────────────────────────────────────────────────────────────
 app.route('/api/auth', authRoutes);
@@ -46,16 +46,21 @@ app.route('/api/ai', aiRoutes);
 app.route('/api/instansi', instansiRoutes);
 app.route('/api/settings', settingsRoutes);
 
-// Health check with full path
-app.get('/api/health', (c) =>
-  c.json({
-    status: 'ok',
-    service: 'SantriDanaKu API',
-    version: '2.0.0',
-    timestamp: new Date().toISOString(),
-    env: process.env.NODE_ENV ?? 'development',
-  }),
-);
+// Backup routes without /api prefix just in case Vercel strips it
+app.route('/auth', authRoutes);
+app.route('/ajuan', ajuanRoutes);
+app.route('/pencairan', pencairanRoutes);
+app.route('/notifikasi', notifikasiRoutes);
+app.route('/pengguna', penggunaRoutes);
+app.route('/laporan', laporanRoutes);
+app.route('/audit', auditRoutes);
+app.route('/ai', aiRoutes);
+app.route('/instansi', instansiRoutes);
+app.route('/settings', settingsRoutes);
+
+// Health check
+app.get('/api/health', (c) => c.json({ status: 'ok', env: 'vercel' }));
+app.get('/health', (c) => c.json({ status: 'ok', env: 'vercel' }));
 
 // ─── Global 404 ──────────────────────────────────────────────────────────────
 app.notFound((c) =>
@@ -66,7 +71,12 @@ app.notFound((c) =>
 app.onError((err, c) => {
   console.error('[server] Unhandled error:', err);
   return c.json(
-    { data: null, error: 'Internal server error', details: err.message },
+    { 
+      data: null, 
+      error: 'Internal server error', 
+      message: err.message, // Menampilkan pesan error asli agar Anda bisa lihat di browser
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
+    },
     500,
   );
 });
