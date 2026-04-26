@@ -17,21 +17,13 @@ import instansiRoutes from './routes/instansi';
 import settingsRoutes from './routes/settings';
 
 // ─── App ─────────────────────────────────────────────────────────────────────
-const app = new Hono().basePath('/api');
+const app = new Hono();
 
 // ─── Global Middleware ────────────────────────────────────────────────────────
 app.use(
   '*',
   cors({
-    origin: (origin) => {
-      const allowed = [
-        process.env.APP_URL ?? '',
-        'http://localhost:5173',
-        'http://localhost:3000',
-        'http://localhost:4173',
-      ].filter(Boolean);
-      return allowed.includes(origin) ? origin : allowed[0];
-    },
+    origin: '*', // Allow all during debug to ensure CORS isn't the cause of 500
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
     allowHeaders: ['Authorization', 'Content-Type', 'x-cron-secret'],
     credentials: true,
@@ -42,8 +34,20 @@ app.use('*', logger());
 app.use('*', prettyJSON());
 app.use('*', auditLogger);
 
-// ─── Health check ─────────────────────────────────────────────────────────────
-app.get('/health', (c) =>
+// ─── Mount Routes ─────────────────────────────────────────────────────────────
+app.route('/api/auth', authRoutes);
+app.route('/api/ajuan', ajuanRoutes);
+app.route('/api/pencairan', pencairanRoutes);
+app.route('/api/notifikasi', notifikasiRoutes);
+app.route('/api/pengguna', penggunaRoutes);
+app.route('/api/laporan', laporanRoutes);
+app.route('/api/audit', auditRoutes);
+app.route('/api/ai', aiRoutes);
+app.route('/api/instansi', instansiRoutes);
+app.route('/api/settings', settingsRoutes);
+
+// Health check with full path
+app.get('/api/health', (c) =>
   c.json({
     status: 'ok',
     service: 'SantriDanaKu API',
@@ -52,18 +56,6 @@ app.get('/health', (c) =>
     env: process.env.NODE_ENV ?? 'development',
   }),
 );
-
-// ─── Mount Routes ─────────────────────────────────────────────────────────────
-app.route('/auth', authRoutes);
-app.route('/ajuan', ajuanRoutes);
-app.route('/pencairan', pencairanRoutes);
-app.route('/notifikasi', notifikasiRoutes);
-app.route('/pengguna', penggunaRoutes);
-app.route('/laporan', laporanRoutes);
-app.route('/audit', auditRoutes);
-app.route('/ai', aiRoutes);
-app.route('/instansi', instansiRoutes);
-app.route('/settings', settingsRoutes);
 
 // ─── Global 404 ──────────────────────────────────────────────────────────────
 app.notFound((c) =>
