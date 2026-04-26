@@ -1,12 +1,12 @@
 import { neon } from '@neondatabase/serverless';
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
 
-if (!connectionString || connectionString.includes('localhost')) {
-  console.warn('[db] DATABASE_URL is missing or local. If this is Vercel, check your Environment Variables.');
+if (!connectionString) {
+  console.warn('[db] No DATABASE_URL found. Please set it in Vercel Dashboard.');
 }
 
-// neon() returns a tagged-template SQL executor — compatible with Vercel Serverless & Edge
-export const sql = neon(connectionString || 'postgresql://unconfigured');
+// neon() returns a tagged-template SQL executor
+export const sql = neon(connectionString || 'postgresql://placeholder-please-set-db-url');
 
 export default sql;
