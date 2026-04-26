@@ -1,11 +1,10 @@
 {
   "version": 2,
-  "cleanUrls": true,
-  "trailingSlash": false,
+  "framework": "vite",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/[[...route]]"
+      "source": "/(api|auth|ajuan|pencairan|notifikasi|pengguna|laporan|audit|ai|instansi|settings)/(.*)",
+      "destination": "https://santri-dana-ku-backend.vercel.app/$1/$2"
     },
     {
       "source": "/(.*)",
