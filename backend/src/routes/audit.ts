@@ -6,7 +6,7 @@ import { rbac } from '../middleware/rbac';
 
 const audit = new Hono();
 
-audit.get('/', authMiddleware, rbac('admin'), async (c) => {
+audit.get('/', authMiddleware, rbac('admin', 'administrasi'), async (c) => {
   const { page = '1', limit = '30', modul, user_id } = c.req.query();
   const pageNum = Math.max(1, Number(page));
   const limitNum = Math.min(100, Math.max(1, Number(limit)));

@@ -10,12 +10,17 @@ const settings = new Hono();
 
 // POST /settings/cloudinary-sign
 settings.post('/cloudinary-sign', authMiddleware, async (c) => {
-  const rows = await sql`SELECT value FROM settings WHERE key = 'instansi' LIMIT 1`;
-  if (!rows[0]) return fail(c, 'Settings not found', 404);
+  // Try to get from 'instansi' or a dedicated 'cloudinary' key
+  const rows = await sql`SELECT key, value FROM settings WHERE key IN ('instansi', 'cloudinary')`;
   
-  const s = rows[0].value as any;
+  let s: any = {};
+  const instansi = rows.find(r => r.key === 'instansi')?.value as any;
+  const direct = rows.find(r => r.key === 'cloudinary')?.value as any;
+  
+  s = { ...instansi, ...direct };
+  
   if (!s.cloudinary_api_key || !s.cloudinary_api_secret || !s.cloudinary_cloud_name) {
-    return fail(c, 'Cloudinary keys not configured in settings', 400);
+    return fail(c, 'Konfigurasi Cloudinary tidak ditemukan di database. Silakan atur di menu Pengaturan.', 400);
   }
 
   const timestamp = Math.round(new Date().getTime() / 1000);

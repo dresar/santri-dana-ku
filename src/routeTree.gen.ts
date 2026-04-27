@@ -19,10 +19,16 @@ import { Route as AuditRouteImport } from './routes/audit'
 import { Route as ApprovalRouteImport } from './routes/approval'
 import { Route as AiRouteImport } from './routes/ai'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PencairanIndexRouteImport } from './routes/pencairan.index'
+import { Route as LaporanIndexRouteImport } from './routes/laporan.index'
 import { Route as AjuanIndexRouteImport } from './routes/ajuan.index'
 import { Route as PenggunaBaruRouteImport } from './routes/pengguna_.baru'
+import { Route as PencairanIdRouteImport } from './routes/pencairan.$id'
+import { Route as LaporanBaruRouteImport } from './routes/laporan.baru'
+import { Route as LaporanIdRouteImport } from './routes/laporan.$id'
 import { Route as AjuanBaruRouteImport } from './routes/ajuan.baru'
 import { Route as AjuanIdRouteImport } from './routes/ajuan.$id'
+import { Route as PencairanIdEditRouteImport } from './routes/pencairan.$id.edit'
 
 const PenggunaRoute = PenggunaRouteImport.update({
   id: '/pengguna',
@@ -74,6 +80,16 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PencairanIndexRoute = PencairanIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PencairanRoute,
+} as any)
+const LaporanIndexRoute = LaporanIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LaporanRoute,
+} as any)
 const AjuanIndexRoute = AjuanIndexRouteImport.update({
   id: '/ajuan/',
   path: '/ajuan/',
@@ -83,6 +99,21 @@ const PenggunaBaruRoute = PenggunaBaruRouteImport.update({
   id: '/pengguna_/baru',
   path: '/pengguna/baru',
   getParentRoute: () => rootRouteImport,
+} as any)
+const PencairanIdRoute = PencairanIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => PencairanRoute,
+} as any)
+const LaporanBaruRoute = LaporanBaruRouteImport.update({
+  id: '/baru',
+  path: '/baru',
+  getParentRoute: () => LaporanRoute,
+} as any)
+const LaporanIdRoute = LaporanIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => LaporanRoute,
 } as any)
 const AjuanBaruRoute = AjuanBaruRouteImport.update({
   id: '/ajuan/baru',
@@ -94,6 +125,11 @@ const AjuanIdRoute = AjuanIdRouteImport.update({
   path: '/ajuan/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PencairanIdEditRoute = PencairanIdEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
+  getParentRoute: () => PencairanIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -101,15 +137,21 @@ export interface FileRoutesByFullPath {
   '/approval': typeof ApprovalRoute
   '/audit': typeof AuditRoute
   '/auth': typeof AuthRoute
-  '/laporan': typeof LaporanRoute
+  '/laporan': typeof LaporanRouteWithChildren
   '/notifikasi': typeof NotifikasiRoute
-  '/pencairan': typeof PencairanRoute
+  '/pencairan': typeof PencairanRouteWithChildren
   '/pengaturan': typeof PengaturanRoute
   '/pengguna': typeof PenggunaRoute
   '/ajuan/$id': typeof AjuanIdRoute
   '/ajuan/baru': typeof AjuanBaruRoute
+  '/laporan/$id': typeof LaporanIdRoute
+  '/laporan/baru': typeof LaporanBaruRoute
+  '/pencairan/$id': typeof PencairanIdRouteWithChildren
   '/pengguna/baru': typeof PenggunaBaruRoute
   '/ajuan/': typeof AjuanIndexRoute
+  '/laporan/': typeof LaporanIndexRoute
+  '/pencairan/': typeof PencairanIndexRoute
+  '/pencairan/$id/edit': typeof PencairanIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -117,15 +159,19 @@ export interface FileRoutesByTo {
   '/approval': typeof ApprovalRoute
   '/audit': typeof AuditRoute
   '/auth': typeof AuthRoute
-  '/laporan': typeof LaporanRoute
   '/notifikasi': typeof NotifikasiRoute
-  '/pencairan': typeof PencairanRoute
   '/pengaturan': typeof PengaturanRoute
   '/pengguna': typeof PenggunaRoute
   '/ajuan/$id': typeof AjuanIdRoute
   '/ajuan/baru': typeof AjuanBaruRoute
+  '/laporan/$id': typeof LaporanIdRoute
+  '/laporan/baru': typeof LaporanBaruRoute
+  '/pencairan/$id': typeof PencairanIdRouteWithChildren
   '/pengguna/baru': typeof PenggunaBaruRoute
   '/ajuan': typeof AjuanIndexRoute
+  '/laporan': typeof LaporanIndexRoute
+  '/pencairan': typeof PencairanIndexRoute
+  '/pencairan/$id/edit': typeof PencairanIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,15 +180,21 @@ export interface FileRoutesById {
   '/approval': typeof ApprovalRoute
   '/audit': typeof AuditRoute
   '/auth': typeof AuthRoute
-  '/laporan': typeof LaporanRoute
+  '/laporan': typeof LaporanRouteWithChildren
   '/notifikasi': typeof NotifikasiRoute
-  '/pencairan': typeof PencairanRoute
+  '/pencairan': typeof PencairanRouteWithChildren
   '/pengaturan': typeof PengaturanRoute
   '/pengguna': typeof PenggunaRoute
   '/ajuan/$id': typeof AjuanIdRoute
   '/ajuan/baru': typeof AjuanBaruRoute
+  '/laporan/$id': typeof LaporanIdRoute
+  '/laporan/baru': typeof LaporanBaruRoute
+  '/pencairan/$id': typeof PencairanIdRouteWithChildren
   '/pengguna_/baru': typeof PenggunaBaruRoute
   '/ajuan/': typeof AjuanIndexRoute
+  '/laporan/': typeof LaporanIndexRoute
+  '/pencairan/': typeof PencairanIndexRoute
+  '/pencairan/$id/edit': typeof PencairanIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -159,8 +211,14 @@ export interface FileRouteTypes {
     | '/pengguna'
     | '/ajuan/$id'
     | '/ajuan/baru'
+    | '/laporan/$id'
+    | '/laporan/baru'
+    | '/pencairan/$id'
     | '/pengguna/baru'
     | '/ajuan/'
+    | '/laporan/'
+    | '/pencairan/'
+    | '/pencairan/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -168,15 +226,19 @@ export interface FileRouteTypes {
     | '/approval'
     | '/audit'
     | '/auth'
-    | '/laporan'
     | '/notifikasi'
-    | '/pencairan'
     | '/pengaturan'
     | '/pengguna'
     | '/ajuan/$id'
     | '/ajuan/baru'
+    | '/laporan/$id'
+    | '/laporan/baru'
+    | '/pencairan/$id'
     | '/pengguna/baru'
     | '/ajuan'
+    | '/laporan'
+    | '/pencairan'
+    | '/pencairan/$id/edit'
   id:
     | '__root__'
     | '/'
@@ -191,8 +253,14 @@ export interface FileRouteTypes {
     | '/pengguna'
     | '/ajuan/$id'
     | '/ajuan/baru'
+    | '/laporan/$id'
+    | '/laporan/baru'
+    | '/pencairan/$id'
     | '/pengguna_/baru'
     | '/ajuan/'
+    | '/laporan/'
+    | '/pencairan/'
+    | '/pencairan/$id/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -201,9 +269,9 @@ export interface RootRouteChildren {
   ApprovalRoute: typeof ApprovalRoute
   AuditRoute: typeof AuditRoute
   AuthRoute: typeof AuthRoute
-  LaporanRoute: typeof LaporanRoute
+  LaporanRoute: typeof LaporanRouteWithChildren
   NotifikasiRoute: typeof NotifikasiRoute
-  PencairanRoute: typeof PencairanRoute
+  PencairanRoute: typeof PencairanRouteWithChildren
   PengaturanRoute: typeof PengaturanRoute
   PenggunaRoute: typeof PenggunaRoute
   AjuanIdRoute: typeof AjuanIdRoute
@@ -284,6 +352,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pencairan/': {
+      id: '/pencairan/'
+      path: '/'
+      fullPath: '/pencairan/'
+      preLoaderRoute: typeof PencairanIndexRouteImport
+      parentRoute: typeof PencairanRoute
+    }
+    '/laporan/': {
+      id: '/laporan/'
+      path: '/'
+      fullPath: '/laporan/'
+      preLoaderRoute: typeof LaporanIndexRouteImport
+      parentRoute: typeof LaporanRoute
+    }
     '/ajuan/': {
       id: '/ajuan/'
       path: '/ajuan'
@@ -297,6 +379,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/pengguna/baru'
       preLoaderRoute: typeof PenggunaBaruRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/pencairan/$id': {
+      id: '/pencairan/$id'
+      path: '/$id'
+      fullPath: '/pencairan/$id'
+      preLoaderRoute: typeof PencairanIdRouteImport
+      parentRoute: typeof PencairanRoute
+    }
+    '/laporan/baru': {
+      id: '/laporan/baru'
+      path: '/baru'
+      fullPath: '/laporan/baru'
+      preLoaderRoute: typeof LaporanBaruRouteImport
+      parentRoute: typeof LaporanRoute
+    }
+    '/laporan/$id': {
+      id: '/laporan/$id'
+      path: '/$id'
+      fullPath: '/laporan/$id'
+      preLoaderRoute: typeof LaporanIdRouteImport
+      parentRoute: typeof LaporanRoute
     }
     '/ajuan/baru': {
       id: '/ajuan/baru'
@@ -312,8 +415,56 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AjuanIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pencairan/$id/edit': {
+      id: '/pencairan/$id/edit'
+      path: '/edit'
+      fullPath: '/pencairan/$id/edit'
+      preLoaderRoute: typeof PencairanIdEditRouteImport
+      parentRoute: typeof PencairanIdRoute
+    }
   }
 }
+
+interface LaporanRouteChildren {
+  LaporanIdRoute: typeof LaporanIdRoute
+  LaporanBaruRoute: typeof LaporanBaruRoute
+  LaporanIndexRoute: typeof LaporanIndexRoute
+}
+
+const LaporanRouteChildren: LaporanRouteChildren = {
+  LaporanIdRoute: LaporanIdRoute,
+  LaporanBaruRoute: LaporanBaruRoute,
+  LaporanIndexRoute: LaporanIndexRoute,
+}
+
+const LaporanRouteWithChildren =
+  LaporanRoute._addFileChildren(LaporanRouteChildren)
+
+interface PencairanIdRouteChildren {
+  PencairanIdEditRoute: typeof PencairanIdEditRoute
+}
+
+const PencairanIdRouteChildren: PencairanIdRouteChildren = {
+  PencairanIdEditRoute: PencairanIdEditRoute,
+}
+
+const PencairanIdRouteWithChildren = PencairanIdRoute._addFileChildren(
+  PencairanIdRouteChildren,
+)
+
+interface PencairanRouteChildren {
+  PencairanIdRoute: typeof PencairanIdRouteWithChildren
+  PencairanIndexRoute: typeof PencairanIndexRoute
+}
+
+const PencairanRouteChildren: PencairanRouteChildren = {
+  PencairanIdRoute: PencairanIdRouteWithChildren,
+  PencairanIndexRoute: PencairanIndexRoute,
+}
+
+const PencairanRouteWithChildren = PencairanRoute._addFileChildren(
+  PencairanRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -321,9 +472,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApprovalRoute: ApprovalRoute,
   AuditRoute: AuditRoute,
   AuthRoute: AuthRoute,
-  LaporanRoute: LaporanRoute,
+  LaporanRoute: LaporanRouteWithChildren,
   NotifikasiRoute: NotifikasiRoute,
-  PencairanRoute: PencairanRoute,
+  PencairanRoute: PencairanRouteWithChildren,
   PengaturanRoute: PengaturanRoute,
   PenggunaRoute: PenggunaRoute,
   AjuanIdRoute: AjuanIdRoute,

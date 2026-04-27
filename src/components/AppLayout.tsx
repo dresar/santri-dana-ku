@@ -11,16 +11,16 @@ import { cn } from "@/lib/utils";
 
 const getMenu = (role?: string) => {
   const all = [
-    { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true, roles: ["admin", "approver", "pengaju"] },
-    { to: "/ajuan", label: "Ajuan Anggaran", icon: FileText, roles: ["admin", "approver", "pengaju"] },
-    { to: "/pencairan", label: "Pencairan Dana", icon: Wallet, roles: ["admin"] },
+    { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true, roles: ["admin", "approver", "pengaju", "administrasi"] },
+    { to: "/ajuan", label: "Ajuan Anggaran", icon: FileText, roles: ["admin", "approver", "pengaju", "administrasi"] },
+    { to: "/pencairan", label: "Pencairan Dana", icon: Wallet, roles: ["admin", "administrasi"] },
     { to: "/approval", label: "Approval", icon: CheckSquare, roles: ["admin", "approver"] },
-    { to: "/laporan", label: "Laporan Keuangan", icon: BarChart3, roles: ["admin", "approver"] },
+    { to: "/laporan", label: "Laporan Keuangan", icon: BarChart3, roles: ["admin", "approver", "pengaju", "administrasi"] },
     { to: "/pengguna", label: "Manajemen Pengguna", icon: Users, roles: ["admin"] },
     { to: "/ai", label: "AI Assistant", icon: Bot, roles: ["admin"] },
-    { to: "/notifikasi", label: "Notifikasi", icon: Bell, roles: ["admin", "approver", "pengaju"] },
+    { to: "/notifikasi", label: "Notifikasi", icon: Bell, roles: ["admin", "approver", "pengaju", "administrasi"] },
     { to: "/audit", label: "Audit Log", icon: ScrollText, roles: ["admin"] },
-    { to: "/pengaturan", label: "Pengaturan", icon: Settings, roles: ["admin", "approver", "pengaju"] },
+    { to: "/pengaturan", label: "Pengaturan", icon: Settings, roles: ["admin", "approver", "pengaju", "administrasi"] },
   ] as const;
   return all.filter(item => !role || item.roles.includes(role));
 };
@@ -56,14 +56,17 @@ export function AppLayout({ children }: { children?: React.ReactNode }) {
   // Auth guard
   const isPublicForm = location.pathname === "/ajuan/baru";
   
+  React.useEffect(() => {
+    if (!loading && !user && !isPublicForm && location.pathname !== "/auth") {
+      router.navigate({ to: "/auth" });
+    }
+  }, [user, loading, isPublicForm, location.pathname, router]);
+
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center bg-background"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
   }
   
   if (!user && !isPublicForm) {
-    if (typeof window !== "undefined" && location.pathname !== "/auth") {
-      router.navigate({ to: "/auth" });
-    }
     return null;
   }
 

@@ -9,10 +9,46 @@ const ajuan = new Hono();
 
 async function generateKode(): Promise<string> {
   const year = new Date().getFullYear();
-  const prefix = `AJU-${year}-%`;
-  const rows = await sql`SELECT COUNT(*) as total FROM ajuan_anggaran WHERE kode LIKE ${prefix}`;
-  const seq = (Number((rows[0] as any)?.total ?? 0) + 1).toString().padStart(4, '0');
-  return `AJU-${year}-${seq}`;
+  const prefix = `AJU-${year}-`;
+  
+  // 1. Ambil kode tertinggi sebagai referensi awal
+  const rows = await sql`
+    SELECT kode 
+    FROM ajuan_anggaran 
+    WHERE kode LIKE ${prefix + '%'} 
+    ORDER BY LENGTH(kode) DESC, kode DESC 
+    LIMIT 1
+  `;
+  
+  let seq = 1;
+  if (rows.length > 0) {
+    const lastKode = (rows[0] as any).kode;
+    const parts = lastKode.split('-');
+    const lastPart = parts[parts.length - 1];
+    const lastSeq = parseInt(lastPart);
+    if (!isNaN(lastSeq)) {
+      seq = lastSeq + 1;
+    }
+  }
+
+  // 2. Loop pengecekan untuk memastikan kode benar-benar belum ada
+  // (Mengatasi masalah race condition atau data lama yang tidak berurutan)
+  let finalKode = `${prefix}${seq.toString().padStart(4, '0')}`;
+  let isUnique = false;
+  let attempts = 0;
+
+  while (!isUnique && attempts < 20) {
+    const check = await sql`SELECT 1 FROM ajuan_anggaran WHERE kode = ${finalKode}`;
+    if (check.length === 0) {
+      isUnique = true;
+    } else {
+      seq++;
+      finalKode = `${prefix}${seq.toString().padStart(4, '0')}`;
+      attempts++;
+    }
+  }
+  
+  return finalKode;
 }
 
 // Temporary migration route - run once by visiting /api/ajuan/migrate
@@ -22,7 +58,25 @@ ajuan.get('/migrate', async (c) => {
     await sql`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS deletion_reason TEXT;`;
     await sql`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS dokumen_url TEXT;`;
     await sql`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS gambar_url TEXT;`;
-    return c.text('Migration successful!');
+    
+    // Update ENUMs
+    try {
+      await sql`ALTER TYPE ajuan_status ADD VALUE IF NOT EXISTS 'selesai'`;
+    } catch (e) {
+      // already exists
+    }
+    
+    // Sync statuses for already approved reports
+    const syncRes = await sql`
+      UPDATE ajuan_anggaran 
+      SET status = 'selesai' 
+      WHERE id IN (
+        SELECT ajuan_id FROM laporan_penggunaan WHERE status = 'disetujui'
+      ) AND status != 'selesai'
+      RETURNING id
+    `;
+    
+    return c.text(`Migration successful! Synced ${syncRes.length} ajuan to 'selesai'.`);
   } catch (err: any) {
     return c.text('Migration failed: ' + err.message, 500);
   }
@@ -39,12 +93,13 @@ ajuan.get('/', authMiddleware, async (c) => {
   let rows: unknown[];
   let countRows: unknown[];
 
-  const s = status === 'all' ? null : status;
+  const s = (!status || status === 'all') ? null : status;
   const q = search ? `%${search}%` : null;
 
   if (role === 'pengaju') {
     rows = await sql`
-      SELECT a.*, p.nama_lengkap AS pengaju_nama 
+      SELECT a.*, p.nama_lengkap AS pengaju_nama,
+        EXISTS(SELECT 1 FROM laporan_penggunaan l WHERE l.ajuan_id = a.id) as has_laporan
       FROM ajuan_anggaran a 
       LEFT JOIN profiles p ON p.id = a.pengaju_id 
       WHERE a.pengaju_id = ${userId} 
@@ -64,7 +119,8 @@ ajuan.get('/', authMiddleware, async (c) => {
     `;
   } else {
     rows = await sql`
-      SELECT a.*, p.nama_lengkap AS pengaju_nama 
+      SELECT a.*, p.nama_lengkap AS pengaju_nama,
+        EXISTS(SELECT 1 FROM laporan_penggunaan l WHERE l.ajuan_id = a.id) as has_laporan
       FROM ajuan_anggaran a 
       LEFT JOIN profiles p ON p.id = a.pengaju_id 
       WHERE a.deleted_at IS NULL
@@ -90,39 +146,58 @@ ajuan.get('/', authMiddleware, async (c) => {
 });
 
 ajuan.post('/', authMiddleware, rbac('pengaju', 'admin'), async (c) => {
-  const userId = c.get('userId');
-  const body = await c.req.json().catch(() => null);
-  const parsed = CreateAjuanSchema.safeParse(body);
-  if (!parsed.success) return fail(c, 'Validasi gagal', 422, parsed.error.flatten());
+  try {
+    const userId = c.get('userId');
+    const body = await c.req.json().catch(() => null);
+    const parsed = CreateAjuanSchema.safeParse(body);
+    if (!parsed.success) return fail(c, 'Validasi gagal', 422, parsed.error.flatten());
 
-  const { judul, instansi, rencana_penggunaan, items, gambar_url } = parsed.data;
-  const total = items.reduce((sum, i) => sum + i.qty * i.harga, 0);
-  const kode = await generateKode();
-
-  const ajuanRows = await sql`
-    INSERT INTO ajuan_anggaran (kode, judul, pengaju_id, instansi, rencana_penggunaan, total, status, gambar_url)
-    VALUES (${kode}, ${judul}, ${userId}, ${instansi}, ${rencana_penggunaan}, ${total}, 'menunggu', ${gambar_url ?? null})
-    RETURNING *
-  `;
-  const newAjuan = ajuanRows[0] as any;
-
-  for (const item of items) {
-    const subtotal = item.qty * item.harga;
-    await sql`
-      INSERT INTO ajuan_items (ajuan_id, nama_item, qty, satuan, harga, subtotal)
-      VALUES (${newAjuan.id}, ${item.nama_item}, ${item.qty}, ${item.satuan ?? null}, ${item.harga}, ${subtotal})
+    // Check if user has outstanding reports
+    const pendingReports = await sql`
+      SELECT COUNT(*) as total 
+      FROM ajuan_anggaran a 
+      LEFT JOIN laporan_penggunaan l ON l.ajuan_id = a.id
+      WHERE a.pengaju_id = ${userId} 
+        AND a.status = 'dicairkan' 
+        AND a.deleted_at IS NULL
+        AND l.id IS NULL
     `;
-  }
+    if (Number((pendingReports[0] as any)?.total ?? 0) > 0) {
+      return fail(c, 'Harap selesaikan laporan penggunaan anggaran sebelumnya sebelum membuat pengajuan baru.', 403);
+    }
 
-  const approvers = await sql`SELECT user_id FROM user_roles WHERE role = 'approver'`;
-  for (const ap of approvers) {
-    await sql`
-      INSERT INTO notifikasi (user_id, judul, pesan, tipe, link)
-      VALUES (${ap.user_id}, 'Ajuan Baru Masuk', ${`Ajuan ${kode} — ${judul} menunggu persetujuan Anda.`}, 'info', ${`/ajuan/${newAjuan.id}`})
+    const { judul, instansi, rencana_penggunaan, items, gambar_url } = parsed.data;
+    const total = items.reduce((sum, i) => sum + i.qty * i.harga, 0);
+    const kode = await generateKode();
+
+    const ajuanRows = await sql`
+      INSERT INTO ajuan_anggaran (kode, judul, pengaju_id, instansi, rencana_penggunaan, total, status, gambar_url)
+      VALUES (${kode}, ${judul}, ${userId}, ${instansi}, ${rencana_penggunaan}, ${total}, 'menunggu', ${gambar_url ?? null})
+      RETURNING *
     `;
-  }
+    const newAjuan = ajuanRows[0] as any;
 
-  return ok(c, newAjuan, 'Ajuan berhasil dibuat', 201);
+    for (const item of items) {
+      const subtotal = item.qty * item.harga;
+      await sql`
+        INSERT INTO ajuan_items (ajuan_id, nama_item, qty, satuan, harga, subtotal)
+        VALUES (${newAjuan.id}, ${item.nama_item}, ${item.qty}, ${item.satuan ?? null}, ${item.harga}, ${subtotal})
+      `;
+    }
+
+    const approvers = await sql`SELECT user_id FROM user_roles WHERE role = 'approver'`;
+    for (const ap of approvers) {
+      await sql`
+        INSERT INTO notifikasi (user_id, judul, pesan, tipe, link)
+        VALUES (${ap.user_id}, 'Ajuan Baru Masuk', ${`Ajuan ${kode} — ${judul} menunggu persetujuan Anda.`}, 'info', ${`/ajuan/${newAjuan.id}`})
+      `;
+    }
+
+    return ok(c, newAjuan, 'Ajuan berhasil dibuat', 201);
+  } catch (err: any) {
+    console.error('[ajuan.post] Error:', err);
+    return fail(c, 'Terjadi kesalahan pada server: ' + err.message, 500);
+  }
 });
 
 ajuan.get('/:id', authMiddleware, async (c) => {
@@ -186,26 +261,35 @@ ajuan.patch('/:id/status', authMiddleware, rbac('approver', 'admin'), async (c) 
   return ok(c, updatedRows[0], `Status berhasil diubah ke ${status}`);
 });
 
-ajuan.delete('/:id', authMiddleware, rbac('admin', 'approver', 'pengaju'), async (c) => {
+ajuan.delete('/:id', authMiddleware, rbac('admin', 'pengaju'), async (c) => {
   const userId = c.get('userId');
   const role = c.get('role');
   const { id } = c.req.param();
   const { reason } = c.req.query();
 
-  const rows = await sql`SELECT id, pengaju_id, kode, judul FROM ajuan_anggaran WHERE id = ${id} LIMIT 1`;
+  const rows = await sql`SELECT id, pengaju_id, kode, judul, status FROM ajuan_anggaran WHERE id = ${id} LIMIT 1`;
   if (!rows[0]) return fail(c, 'Ajuan tidak ditemukan', 404);
   const ajuan = rows[0] as any;
+
+  // New Restrictions:
+  if (ajuan.status === 'selesai') {
+    return fail(c, 'Ajuan yang sudah selesai tidak dapat dihapus', 403);
+  }
+  
+  if (role === 'pengaju' && ['disetujui', 'dicairkan'].includes(ajuan.status)) {
+    return fail(c, 'Pengaju tidak dapat menghapus ajuan yang sudah disetujui atau dicairkan', 403);
+  }
 
   // Authorization
   if (role === 'pengaju' && ajuan.pengaju_id !== userId) {
     return fail(c, 'Tidak memiliki akses', 403);
   }
 
-  // Soft delete for admin/approver with reason
-  if (role === 'admin' || role === 'approver') {
+  // Soft delete for admin with reason
+  if (role === 'admin') {
     await sql`
       UPDATE ajuan_anggaran 
-      SET deleted_at = NOW(), deletion_reason = ${reason ?? 'Dihapus oleh Admin/Approver'}
+      SET deleted_at = NOW(), deletion_reason = ${reason ?? 'Dihapus oleh Admin'}
       WHERE id = ${id}
     `;
     

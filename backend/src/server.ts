@@ -1,3 +1,5 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
 import { serve } from '@hono/node-server';
 import app from './index.js';
 

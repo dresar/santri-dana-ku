@@ -11,11 +11,28 @@ if (!DATABASE_URL) {
 const sql = neon(DATABASE_URL);
 
 function splitStatements(content: string): string[] {
-  return content
-    .replace(/--[^\n]*/g, '')
-    .split(/;\s*\n/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0 && !s.startsWith('--'));
+  // Remove comments
+  const cleanContent = content.replace(/--[^\n]*/g, '');
+  
+  const statements: string[] = [];
+  let current = '';
+  let inDollarQuote = false;
+  
+  const lines = cleanContent.split('\n');
+  for (let line of lines) {
+    const trimmedLine = line.trim();
+    if (trimmedLine.includes('$$')) inDollarQuote = !inDollarQuote;
+    
+    current += line + '\n';
+    
+    if (!inDollarQuote && trimmedLine.endsWith(';')) {
+      statements.push(current.trim());
+      current = '';
+    }
+  }
+  
+  if (current.trim()) statements.push(current.trim());
+  return statements.filter(s => s.length > 0);
 }
 
 async function runMigration(label: string, filePath: string) {
@@ -56,9 +73,7 @@ async function main() {
   console.log('[migrate] Starting database migration...');
   console.log('[migrate] Database:', DATABASE_URL!.split('@')[1]?.split('/')[1]?.split('?')[0]);
 
-  await runMigration('V1 — core schema', join(process.cwd(), 'sql/migration.sql'));
-  await runMigration('V2 — gemini_api_keys + fixes', join(process.cwd(), 'sql/migration_v2.sql'));
-  await runMigration('V3 — instansi table', join(process.cwd(), 'sql/migration_v3.sql'));
+  await runMigration('SantriDanaKu Master Schema', join(process.cwd(), 'sql/migration.sql'));
 
   console.log('\n[migrate] ✅ All migrations complete!\n');
 }

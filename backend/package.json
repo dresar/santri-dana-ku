@@ -2,28 +2,32 @@
   "name": "santridanaku-backend",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc --noEmit",
+    "build:cpanel": "esbuild src/entry-cpanel.ts --bundle --platform=node --target=node18 --format=cjs --outfile=app.js --external:cloudinary --external:@neondatabase/serverless",
     "migrate": "tsx --env-file=.env scripts/migrate.ts",
     "seed": "tsx --env-file=.env scripts/seed.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@hono/node-server": "^1.13.8",
     "@neondatabase/serverless": "^0.10.4",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.10.0",
+    "dotenv": "^16.4.5",
     "hono": "^4.12.14",
     "jose": "^6.2.2",
     "postgres": "^3.4.9",
+    "undici": "^8.1.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.38.3",
+    "@hono/node-server": "^2.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.16.5",
+    "@vercel/ncc": "^0.38.3",
+    "esbuild": "^0.25.12",
     "tsx": "^4.21.0",
     "typescript": "^5.8.3"
   }

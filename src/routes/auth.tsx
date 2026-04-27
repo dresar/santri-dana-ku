@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Building2, Loader2, ShieldCheck, UserCheck, Users } from "lucide-react";
+import { Building2, Loader2, ShieldCheck, UserCheck, Users, Wallet } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 
@@ -94,6 +94,7 @@ function AuthPage() {
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { label: "Admin", email: "admin@example.com", icon: ShieldCheck, color: "text-red-500 bg-red-50 border-red-100" },
+                  { label: "Administrasi", email: "admin.keuangan@santri.id", icon: Wallet, color: "text-purple-500 bg-purple-50 border-purple-100" },
                   { label: "Approver", email: "approver@example.com", icon: UserCheck, color: "text-blue-500 bg-blue-50 border-blue-100" },
                   { label: "Pengaju", email: "pengaju@example.com", icon: Users, color: "text-emerald-500 bg-emerald-50 border-emerald-100" },
                 ].map((d) => (

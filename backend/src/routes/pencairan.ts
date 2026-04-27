@@ -3,7 +3,7 @@ import sql from '../db';
 import { ok, fail } from '../lib/response';
 import { authMiddleware } from '../middleware/auth';
 import { rbac } from '../middleware/rbac';
-import { CreatePencairanSchema, UpdatePencairanStatusSchema } from '../lib/validators';
+import { CreatePencairanSchema, UpdatePencairanStatusSchema, UpdatePencairanSchema } from '../lib/validators';
 
 const pencairan = new Hono();
 
@@ -12,7 +12,7 @@ pencairan.get('/', authMiddleware, async (c) => {
   const userId = c.get('userId');
 
   let rows: unknown[];
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'administrasi') {
     rows = await sql`
       SELECT pc.*, a.kode, a.judul, p.nama_lengkap AS pengaju_nama, pr.nama_lengkap AS diproses_nama
       FROM pencairan pc
@@ -34,13 +34,13 @@ pencairan.get('/', authMiddleware, async (c) => {
   return ok(c, rows);
 });
 
-pencairan.post('/', authMiddleware, rbac('admin'), async (c) => {
+pencairan.post('/', authMiddleware, rbac('admin', 'administrasi'), async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json().catch(() => null);
   const parsed = CreatePencairanSchema.safeParse(body);
   if (!parsed.success) return fail(c, 'Validasi gagal', 422, parsed.error.flatten());
 
-  const { ajuan_id, bank, no_rekening, nama_pemilik, jumlah } = parsed.data;
+  const { ajuan_id, bank, no_rekening, nama_pemilik, jumlah, metode, bukti_url, bukti_penyerahan_url } = parsed.data;
 
   const ajuanRows = await sql`
     SELECT id, status, pengaju_id, kode, judul FROM ajuan_anggaran WHERE id = ${ajuan_id} LIMIT 1
@@ -53,8 +53,8 @@ pencairan.post('/', authMiddleware, rbac('admin'), async (c) => {
   }
 
   const newRows = await sql`
-    INSERT INTO pencairan (ajuan_id, bank, no_rekening, nama_pemilik, jumlah, diproses_oleh, status)
-    VALUES (${ajuan_id}, ${bank}, ${no_rekening}, ${nama_pemilik}, ${jumlah}, ${userId}, 'diproses')
+    INSERT INTO pencairan (ajuan_id, bank, no_rekening, nama_pemilik, jumlah, diproses_oleh, status, metode, bukti_url, bukti_penyerahan_url)
+    VALUES (${ajuan_id}, ${bank ?? null}, ${no_rekening ?? null}, ${nama_pemilik ?? null}, ${jumlah}, ${userId}, 'selesai', ${metode ?? 'tunai'}, ${bukti_url ?? null}, ${bukti_penyerahan_url ?? null})
     RETURNING *
   `;
   const newPencairan = newRows[0] as any;
@@ -92,7 +92,7 @@ pencairan.get('/:id', authMiddleware, async (c) => {
   return ok(c, rows[0]);
 });
 
-pencairan.patch('/:id/status', authMiddleware, rbac('admin'), async (c) => {
+pencairan.patch('/:id/status', authMiddleware, rbac('admin', 'administrasi'), async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json().catch(() => null);
   const parsed = UpdatePencairanStatusSchema.safeParse(body);
@@ -110,7 +110,37 @@ pencairan.patch('/:id/status', authMiddleware, rbac('admin'), async (c) => {
   return ok(c, updatedRows[0], 'Status pencairan berhasil diperbarui');
 });
 
-pencairan.delete('/:id', authMiddleware, rbac('admin'), async (c) => {
+pencairan.patch('/:id', authMiddleware, rbac('admin', 'administrasi'), async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json().catch(() => null);
+  const parsed = UpdatePencairanSchema.safeParse(body);
+  if (!parsed.success) return fail(c, 'Validasi gagal', 422, parsed.error.flatten());
+
+  const existingRows = await sql`SELECT id FROM pencairan WHERE id = ${id} LIMIT 1`;
+  if (!existingRows[0]) return fail(c, 'Pencairan tidak ditemukan', 404);
+
+  const { metode, bank, no_rekening, nama_pemilik, jumlah, bukti_url, bukti_penyerahan_url, status } = parsed.data;
+
+  const updatedRows = await sql`
+    UPDATE pencairan 
+    SET 
+      metode = COALESCE(${metode ?? null}, metode),
+      bank = COALESCE(${bank ?? null}, bank),
+      no_rekening = COALESCE(${no_rekening ?? null}, no_rekening),
+      nama_pemilik = COALESCE(${nama_pemilik ?? null}, nama_pemilik),
+      jumlah = COALESCE(${jumlah ?? null}, jumlah),
+      bukti_url = COALESCE(${bukti_url ?? null}, bukti_url),
+      bukti_penyerahan_url = COALESCE(${bukti_penyerahan_url ?? null}, bukti_penyerahan_url),
+      status = COALESCE(${status ?? null}, status),
+      updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING *
+  `;
+
+  return ok(c, updatedRows[0], 'Data pencairan berhasil diperbarui');
+});
+
+pencairan.delete('/:id', authMiddleware, rbac('admin', 'administrasi'), async (c) => {
   const { id } = c.req.param();
 
   const rows = await sql`SELECT id, ajuan_id FROM pencairan WHERE id = ${id} LIMIT 1`;

@@ -3,8 +3,8 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/(api|auth|ajuan|pencairan|notifikasi|pengguna|laporan|audit|ai|instansi|settings)/(.*)",
-      "destination": "https://santri-dana-ku-backend.vercel.app/$1/$2"
+      "source": "/api/(.*)",
+      "destination": "https://uang.rdsmahato.ponpes.id/api/$1"
     },
     {
       "source": "/(.*)",

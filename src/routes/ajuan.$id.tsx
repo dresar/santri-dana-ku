@@ -29,10 +29,7 @@ function DetailAjuanPage() {
   const { id } = Route.useParams();
   const { data, isLoading, isError, error } = useAjuanDetail(id);
 
-  const [showAi, setShowAi] = useState(false);
-  const [aiResult, setAiResult] = useState<any>(null);
   const [catatanApproval, setCatatanApproval] = useState("");
-  const analyze = useAnalyzeAjuan();
   const approval = useApproval();
   const deleteAjuan = useDeleteAjuan();
   const { role: userRole, userId: currentUserId } = useAuth();
@@ -175,12 +172,18 @@ function DetailAjuanPage() {
         description={`Kode ajuan: ${ajuan.kode}`}
         actions={
           <>
-            <button onClick={handleAnalyze} className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-50 px-4 text-sm font-semibold text-indigo-600 hover:bg-indigo-100 border border-indigo-200 print:hidden">
-              <Bot className="h-4 w-4" /> Analisis AI
-            </button>
             <button onClick={handlePrint} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold hover:bg-secondary print:hidden"><Printer className="h-4 w-4" /> Cetak</button>
             <button onClick={handleDownloadPdf} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90 print:hidden"><Download className="h-4 w-4" /> Unduh PDF (Direct)</button>
-            {(userRole === "admin" || userRole === "approver" || ajuan.pengaju_id === currentUserId) && (
+            {ajuan.status === "dicairkan" && !ajuan.has_laporan && ajuan.pengaju_id === currentUserId && (
+              <Link 
+                to="/laporan/baru" 
+                search={{ ajuanId: id }}
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white shadow-soft hover:bg-emerald-700 print:hidden"
+              >
+                <FileText className="h-4 w-4" /> Buat Laporan Penggunaan
+              </Link>
+            )}
+            {(userRole === "admin" ? ajuan.status !== "selesai" : (ajuan.pengaju_id === currentUserId && ["menunggu", "draft", "ditolak"].includes(ajuan.status))) && (
               <button 
                 onClick={handleDelete} 
                 disabled={deleteAjuan.isPending}
@@ -194,41 +197,6 @@ function DetailAjuanPage() {
         }
       />
 
-      {showAi && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl max-h-[85vh] flex flex-col animate-fade-in rounded-2xl border border-border bg-card shadow-elevated">
-            <div className="flex items-center justify-between border-b border-border p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600"><Bot className="h-5 w-5" /></div>
-                <div>
-                  <h3 className="font-bold">Analisis AI (Gemini 2.5)</h3>
-                  <p className="text-xs text-muted-foreground">Evaluasi kewajaran harga & rencana belanja</p>
-                </div>
-              </div>
-              <button onClick={() => setShowAi(false)} className="rounded-lg p-1.5 hover:bg-secondary"><X className="h-5 w-5" /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              {analyze.isPending ? (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <Sparkles className="mb-4 h-8 w-8 animate-pulse text-indigo-400" />
-                  <p className="text-sm font-semibold">AI sedang menganalisis dokumen ajuan...</p>
-                  <p className="text-xs">Ini mungkin memakan waktu beberapa detik.</p>
-                </div>
-              ) : (
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  {typeof aiResult === 'string' ? (
-                    <div className="whitespace-pre-wrap leading-relaxed">{aiResult}</div>
-                  ) : (
-                    <pre className="whitespace-pre-wrap text-[13px] bg-secondary/30 p-4 rounded-xl border border-border overflow-x-auto">
-                      {JSON.stringify(aiResult, null, 2)}
-                    </pre>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="space-y-8 lg:col-span-2">

@@ -10,10 +10,12 @@ export const Route = createFileRoute("/approval")({
   component: ApprovalPage,
 });
 
-type ApprovalTab = "menunggu" | "disetujui" | "ditolak";
+type ApprovalTab = "menunggu" | "disetujui" | "ditolak" | "dicairkan" | "selesai";
 const tabs: { value: ApprovalTab; label: string }[] = [
   { value: "menunggu", label: "Menunggu" },
   { value: "disetujui", label: "Disetujui" },
+  { value: "dicairkan", label: "Dicairkan" },
+  { value: "selesai", label: "Selesai" },
   { value: "ditolak", label: "Ditolak" },
 ];
 
@@ -25,6 +27,8 @@ function ApprovalPage() {
   const counts = {
     menunggu: ajuanData.filter(a => a.status === "menunggu").length,
     disetujui: ajuanData.filter(a => a.status === "disetujui").length,
+    dicairkan: ajuanData.filter(a => a.status === "dicairkan").length,
+    selesai: ajuanData.filter(a => a.status === "selesai").length,
     ditolak: ajuanData.filter(a => a.status === "ditolak").length,
   };
 

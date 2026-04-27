@@ -10,10 +10,11 @@ export interface Ajuan {
   instansi: string;
   rencana_penggunaan: string;
   total: number;
-  status: "menunggu" | "disetujui" | "ditolak" | "dicairkan";
+  status: "menunggu" | "disetujui" | "ditolak" | "dicairkan" | "selesai";
   dokumen_url?: string;
   gambar_url?: string;
   catatan?: string;
+  has_laporan?: boolean;
   pengaju_id: string;
   pengaju_nama?: string;
   pengaju_jabatan?: string;
@@ -59,6 +60,9 @@ export interface Pencairan {
   status: "menunggu" | "diproses" | "selesai";
   pengaju_nama?: string;
   diproses_nama?: string;
+  metode: "tunai" | "transfer";
+  bukti_url?: string;
+  bukti_penyerahan_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -116,6 +120,36 @@ export interface Instansi {
   id: string;
   nama: string;
   created_at: string;
+}
+
+export interface Laporan {
+  id: string;
+  ajuan_id: string;
+  ajuan_kode?: string;
+  ajuan_judul?: string;
+  pengaju_id: string;
+  pengaju_nama?: string;
+  total_anggaran: number;
+  total_digunakan: number;
+  sisa_dana: number;
+  catatan?: string;
+  foto_nota_urls: string[];
+  pdf_laporan_url?: string;
+  status: "menunggu" | "disetujui" | "ditolak";
+  verifikator_id?: string;
+  catatan_verifikasi?: string;
+  created_at: string;
+  items?: LaporanItem[];
+}
+
+export interface LaporanItem {
+  id: string;
+  laporan_id: string;
+  nama_item: string;
+  qty: number;
+  satuan?: string;
+  harga: number;
+  subtotal: number;
 }
 
 export interface PagedResponse<T> {
@@ -231,6 +265,26 @@ export function useUpdatePencairanStatus() {
     mutationFn: ({ id, status }: { id: string; status: "menunggu" | "diproses" | "selesai" }) =>
       apiPatch(`/pencairan/${id}/status`, { status }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pencairan"] }),
+  });
+}
+
+export function useUpdatePencairan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<Pencairan> }) =>
+      apiPatch(`/pencairan/${id}`, input),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["pencairan"] });
+      qc.invalidateQueries({ queryKey: ["pencairan", vars.id] });
+    },
+  });
+}
+
+export function usePencairanDetail(id: string) {
+  return useQuery<Pencairan>({
+    queryKey: ["pencairan", id],
+    queryFn: () => apiFetch<Pencairan>(`/pencairan/${id}`),
+    enabled: !!id,
   });
 }
 
@@ -364,7 +418,7 @@ export function useResetPassword() {
 
 // ─── Audit Log ────────────────────────────────────────────────────────────────
 
-export function useAuditLog(params?: { modul?: string; user_id?: string; page?: number }) {
+export function useAuditLog(params?: { modul?: string; user_id?: string; page?: number }, options?: { enabled?: boolean }) {
   const qs = new URLSearchParams();
   if (params?.modul) qs.set("modul", params.modul);
   if (params?.user_id) qs.set("user_id", params.user_id);
@@ -378,6 +432,7 @@ export function useAuditLog(params?: { modul?: string; user_id?: string; page?: 
       if (Array.isArray(res)) return res;
       return (res as PagedResponse<AuditLog>).data ?? [];
     },
+    ...options
   });
 }
 
@@ -394,6 +449,33 @@ export function useLaporanBulanan(year?: number) {
   return useQuery({
     queryKey: ["laporan", "bulanan", year],
     queryFn: () => apiFetch(`/laporan/bulanan${year ? "?year=" + year : ""}`),
+  });
+}
+
+export function useLaporanList(params?: { page?: number; limit?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+
+  return useQuery<PagedResponse<Laporan> | Laporan[]>({
+    queryKey: ["laporan", "list", params],
+    queryFn: async () => {
+      const res = await apiFetch<PagedResponse<Laporan> | Laporan[]>(`/laporan${query ? "?" + query : ""}`);
+      if (Array.isArray(res)) return res;
+      return (res as PagedResponse<Laporan>).data ?? [];
+    },
+  });
+}
+
+export function useCreateLaporan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: any) => apiPost("/laporan", input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["laporan"] });
+      qc.invalidateQueries({ queryKey: ["ajuan"] });
+    },
   });
 }
 
@@ -505,5 +587,19 @@ export function useUpdateSettings(key: string = "instansi") {
   return useMutation({
     mutationFn: (value: InstansiSettings) => apiPatch(`/settings/${key}`, value),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["settings", key] }),
+  });
+}
+
+export function useVerifyReport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status, catatan }: { id: string; status: string; catatan?: string }) =>
+      apiPatch(`/laporan/${id}/status`, { status, catatan }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["laporan"] });
+      qc.invalidateQueries({ queryKey: ["laporan", vars.id] });
+      qc.invalidateQueries({ queryKey: ["ajuan"] });
+      qc.invalidateQueries({ queryKey: ["notifikasi"] });
+    },
   });
 }

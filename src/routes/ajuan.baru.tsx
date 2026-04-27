@@ -3,11 +3,12 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { formatRupiah } from "@/lib/utils";
-import { useCreateAjuan, useInstansiList, useSettings } from "@/lib/queries";
+import { useCreateAjuan, useInstansiList, useSettings, useAjuanList } from "@/lib/queries";
 import { compressImage, uploadToCloudinary } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { ArrowLeft, Plus, Trash2, Upload, X, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, X, Send, Loader2, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { useMemo } from "react";
 
 export const Route = createFileRoute("/ajuan/baru")({
   head: () => ({ meta: [{ title: "Buat Ajuan Baru — E-Budgeting Pesantren" }] }),
@@ -22,6 +23,11 @@ function BuatAjuanPage() {
   const createAjuan = useCreateAjuan();
   const { data: instansiData = [] } = useInstansiList();
   const { data: settings } = useSettings();
+  const { data: ajuanList = [] } = useAjuanList();
+  
+  const pendingReport = useMemo(() => {
+    return ajuanList.find(a => (a.status === 'dicairkan' || a.status === 'disetujui') && !a.has_laporan);
+  }, [ajuanList]);
   
   const [instansi, setInstansi] = useState(profile?.instansi || "");
   const [judul, setJudul] = useState("");
@@ -113,6 +119,27 @@ function BuatAjuanPage() {
   const addItem = () => setItems(prev => [...prev, { id: String(Date.now()), nama: "", qty: 1, satuan: "pcs", harga: 0 }]);
   const removeItem = (id: string) => setItems(prev => prev.length > 1 ? prev.filter(i => i.id !== id) : prev);
   const updateItem = (id: string, patch: Partial<Item>) => setItems(prev => prev.map(i => i.id === id ? { ...i, ...patch } : i));
+
+  if (pendingReport) {
+    return (
+      <div className="py-20 text-center animate-fade-in">
+        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-amber-500/10 text-amber-500 shadow-soft">
+          <AlertTriangle className="h-10 w-10" />
+        </div>
+        <h2 className="text-2xl font-bold text-foreground">Selesaikan Laporan Dahulu</h2>
+        <p className="mt-2 text-muted-foreground max-w-md mx-auto">
+          Anda masih memiliki anggaran yang dicairkan (<b>{pendingReport.kode}</b>) namun belum dilaporkan penggunaannya. Harap selesaikan laporan tersebut sebelum membuat pengajuan baru.
+        </p>
+        <Link 
+          to="/laporan/baru"
+          search={{ ajuanId: pendingReport.id }}
+          className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-bold text-primary-foreground shadow-soft hover:bg-primary/90 transition-all hover:scale-105"
+        >
+          Buat Laporan Sekarang
+        </Link>
+      </div>
+    );
+  }
 
   if (role === "approver") {
     return (

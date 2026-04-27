@@ -32,12 +32,12 @@ function AjuanListPage() {
   const deleteAjuan = useDeleteAjuan();
 
   const handleDelete = async (a: any) => {
-    const isApprover = role === "admin" || role === "approver";
+    const isAdmin = role === "admin";
     let reason = "";
 
-    if (isApprover) {
+    if (isAdmin) {
       const input = prompt(`Masukkan alasan penghapusan untuk ajuan ${a.kode}:`, "Kesalahan data / Pembatalan operasional");
-      if (input === null) return; // cancel
+      if (input === null) return;
       reason = input;
     } else {
       if (!confirm(`Apakah Anda yakin ingin menghapus ajuan ${a.kode}?`)) return;
@@ -182,13 +182,15 @@ function AjuanListPage() {
                         </Link>
                       )}
 
-                      <button 
-                        onClick={() => handleDelete(a)}
-                        className="inline-flex h-8 items-center gap-1 rounded-md border border-destructive/20 bg-destructive/5 px-2.5 text-xs font-semibold text-destructive hover:bg-destructive/10"
-                        title="Hapus"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {(role === "admin" ? a.status !== "selesai" : (role === "pengaju" && ["menunggu", "draft", "ditolak"].includes(a.status))) && (
+                        <button 
+                          onClick={() => handleDelete(a)}
+                          className="inline-flex h-8 items-center gap-1 rounded-md border border-destructive/20 bg-destructive/5 px-2.5 text-xs font-semibold text-destructive hover:bg-destructive/10"
+                          title="Hapus"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-export type AppRole = "admin" | "pengaju" | "approver";
+export type AppRole = "admin" | "pengaju" | "approver" | "administrasi";
 
 interface User {
   id: string;

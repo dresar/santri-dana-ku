@@ -16,7 +16,7 @@ export const SignupSchema = z.object({
 });
 
 export const CreateUserAdminSchema = SignupSchema.extend({
-  role: z.enum(['admin', 'pengaju', 'approver']).optional().default('pengaju'),
+  role: z.enum(['admin', 'pengaju', 'approver', 'administrasi']).optional().default('pengaju'),
 });
 
 export const UpdateProfileSchema = z.object({
@@ -49,26 +49,33 @@ export const CreateAjuanSchema = z.object({
 });
 
 export const UpdateAjuanStatusSchema = z.object({
-  status: z.enum(['disetujui', 'ditolak', 'dicairkan', 'menunggu']),
+  status: z.enum(['disetujui', 'ditolak', 'dicairkan', 'menunggu', 'selesai']),
   catatan: z.string().optional(),
 });
 
 // ─── Pencairan ───────────────────────────────────────────────────────────────
 export const CreatePencairanSchema = z.object({
   ajuan_id: z.string().uuid(),
-  bank: z.string().min(2),
-  no_rekening: z.string().min(5),
-  nama_pemilik: z.string().min(2),
+  metode: z.enum(['tunai', 'transfer']).default('tunai'),
+  bank: z.string().optional(),
+  no_rekening: z.string().optional(),
+  nama_pemilik: z.string().optional(),
   jumlah: z.number().positive(),
+  bukti_url: z.string().optional(),
+  bukti_penyerahan_url: z.string().optional(),
 });
 
 export const UpdatePencairanStatusSchema = z.object({
   status: z.enum(['menunggu', 'diproses', 'selesai']),
 });
 
+export const UpdatePencairanSchema = CreatePencairanSchema.omit({ ajuan_id: true }).partial().extend({
+  status: z.enum(['menunggu', 'diproses', 'selesai']).optional(),
+});
+
 // ─── Pengguna ────────────────────────────────────────────────────────────────
 export const UpdateRoleSchema = z.object({
-  role: z.enum(['admin', 'pengaju', 'approver']),
+  role: z.enum(['admin', 'pengaju', 'approver', 'administrasi']),
 });
 
 // ─── AI Keys ─────────────────────────────────────────────────────────────────
@@ -98,4 +105,21 @@ export const ChatSchema = z.object({
     )
     .optional()
     .default([]),
+});
+// ─── Laporan ────────────────────────────────────────────────────────────────
+export const LaporanItemSchema = z.object({
+  nama_item: z.string().min(1),
+  qty: z.number().positive(),
+  satuan: z.string().optional(),
+  harga: z.number().nonnegative(),
+});
+
+export const CreateLaporanSchema = z.object({
+  ajuan_id: z.string().uuid(),
+  total_anggaran: z.number().nonnegative(),
+  total_digunakan: z.number().nonnegative(),
+  sisa_dana: z.number(),
+  catatan: z.string().optional(),
+  foto_nota_urls: z.array(z.string()),
+  items: z.array(LaporanItemSchema).min(1),
 });
