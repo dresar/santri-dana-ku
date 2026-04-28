@@ -23,7 +23,7 @@ const app = new Hono();
 app.use(
   '*',
   cors({
-    origin: '*', // Allow all during debug to ensure CORS isn't the cause of 500
+    origin: (origin) => origin, // Echo back origin to support credentials if needed, or use '*' with credentials: false
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
     allowHeaders: ['Authorization', 'Content-Type', 'x-cron-secret'],
     credentials: true,
@@ -159,7 +159,7 @@ app.notFound((c) =>
 
 // ─── Global Error Handler ────────────────────────────────────────────────────
 app.onError((err, c) => {
-  console.error('[server] Unhandled error:', err);
+  console.error(`[server] Unhandled error [${c.req.method} ${c.req.path}]:`, err);
   return c.json(
     {
       data: null,

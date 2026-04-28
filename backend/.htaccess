@@ -1,0 +1,21 @@
+# Ensure Authorization header is passed to Node.js
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP:Authorization} ^(.*)
+    RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
+</IfModule>
+
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/rdsmahat/public_html/uang.rdsmahato.ponpes.id"
+PassengerBaseURI "/"
+PassengerNodejs "/home/rdsmahat/nodevenv/public_html/uang.rdsmahato.ponpes.id/22/bin/node"
+PassengerAppType node
+PassengerStartupFile app.js
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+
+# DO NOT REMOVE OR MODIFY. CLOUDLINUX ENV VARS CONFIGURATION BEGIN
+<IfModule Litespeed>
+SetEnv DATABASE_URL postgresql://neondb_owner:npg_nSRb83caEtev@ep-ancient-tree-aooixo0b-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+SetEnv JWT_SECRET b0ffff3c2299551401bdfcf35ea9be8283c0aab612cc0241c5d813e4f0f2a393
+</IfModule>
+# DO NOT REMOVE OR MODIFY. CLOUDLINUX ENV VARS CONFIGURATION END

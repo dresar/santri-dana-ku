@@ -144,7 +144,7 @@ function DashboardAdmin() {
               <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-info" />Dicairkan</span>
             </div>
           </div>
-          <div className="h-72 w-full min-h-[300px]">
+          <div className="h-[300px] w-full">
             {isMounted && (
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <AreaChart data={grafikBulanan}>
@@ -173,7 +173,7 @@ function DashboardAdmin() {
         <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
           <h3 className="font-semibold">Anggaran per Bidang</h3>
           <p className="text-xs text-muted-foreground">Distribusi nilai disetujui</p>
-          <div className="mt-4 h-72">
+          <div className="mt-4 h-[300px] w-full">
             {grafikInstansi.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Belum ada data</div>
             ) : (

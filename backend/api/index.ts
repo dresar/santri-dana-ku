@@ -11,7 +11,7 @@ const sql = neon(process.env.DATABASE_URL || 'postgresql://unconfigured');
 const app = new Hono();
 
 app.use('*', cors({
-  origin: '*',
+  origin: (origin) => origin,
   allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
   allowHeaders: ['Authorization', 'Content-Type'],
   credentials: true,
