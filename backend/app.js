@@ -5,6 +5,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
@@ -304,7 +307,7 @@ var require_main = __commonJS({
         return { parsed: parsedAll };
       }
     }
-    function config2(options) {
+    function config3(options) {
       if (_dotenvKey(options).length === 0) {
         return DotenvModule.configDotenv(options);
       }
@@ -371,7 +374,7 @@ var require_main = __commonJS({
       configDotenv,
       _configVault,
       _parseVault,
-      config: config2,
+      config: config3,
       decrypt,
       parse,
       populate
@@ -384,6 +387,30 @@ var require_main = __commonJS({
     module2.exports.parse = DotenvModule.parse;
     module2.exports.populate = DotenvModule.populate;
     module2.exports = DotenvModule;
+  }
+});
+
+// src/db.ts
+var db_exports = {};
+__export(db_exports, {
+  default: () => db_default,
+  sql: () => sql
+});
+var dotenv, import_serverless, connectionString, sql, db_default;
+var init_db = __esm({
+  "src/db.ts"() {
+    "use strict";
+    dotenv = __toESM(require_main());
+    import_serverless = require("@neondatabase/serverless");
+    dotenv.config();
+    connectionString = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
+    if (!connectionString) {
+      const errorMsg = "[db] DATABASE_URL is not defined. If you are on Vercel, set it in the Dashboard. If you are on cPanel, set it in the Node.js Application Environment Variables.";
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+    sql = (0, import_serverless.neon)(connectionString);
+    db_default = sql;
   }
 });
 
@@ -26229,7 +26256,7 @@ var serve = (options, listeningListener) => {
 };
 
 // src/entry-cpanel.ts
-var dotenv = __toESM(require_main());
+var dotenv2 = __toESM(require_main());
 var import_path = __toESM(require("path"));
 
 // node_modules/hono/dist/compose.js
@@ -30172,16 +30199,8 @@ var bcryptjs_default = {
   decodeBase64
 };
 
-// src/db.ts
-var import_serverless = require("@neondatabase/serverless");
-var connectionString = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
-if (!connectionString) {
-  const errorMsg = "[db] DATABASE_URL is not defined. If you are on Vercel, set it in the Dashboard. If you are on cPanel, set it in the Node.js Application Environment Variables.";
-  console.error(errorMsg);
-  throw new Error(errorMsg);
-}
-var sql = (0, import_serverless.neon)(connectionString);
-var db_default = sql;
+// src/routes/auth.ts
+init_db();
 
 // node_modules/jose/dist/webapi/lib/buffer_utils.js
 var encoder = new TextEncoder();
@@ -35594,7 +35613,7 @@ var SignupSchema = external_exports.object({
   no_hp: external_exports.string().optional()
 });
 var CreateUserAdminSchema = SignupSchema.extend({
-  role: external_exports.enum(["admin", "pengaju", "approver"]).optional().default("pengaju")
+  role: external_exports.enum(["admin", "pengaju", "approver", "administrasi"]).optional().default("pengaju")
 });
 var UpdateProfileSchema = external_exports.object({
   nama_lengkap: external_exports.string().min(2).optional(),
@@ -35621,21 +35640,27 @@ var CreateAjuanSchema = external_exports.object({
   items: external_exports.array(AjuanItemSchema).min(1)
 });
 var UpdateAjuanStatusSchema = external_exports.object({
-  status: external_exports.enum(["disetujui", "ditolak", "dicairkan", "menunggu"]),
+  status: external_exports.enum(["disetujui", "ditolak", "dicairkan", "menunggu", "selesai"]),
   catatan: external_exports.string().optional()
 });
 var CreatePencairanSchema = external_exports.object({
   ajuan_id: external_exports.string().uuid(),
-  bank: external_exports.string().min(2),
-  no_rekening: external_exports.string().min(5),
-  nama_pemilik: external_exports.string().min(2),
-  jumlah: external_exports.number().positive()
+  metode: external_exports.enum(["tunai", "transfer"]).default("tunai"),
+  bank: external_exports.string().optional(),
+  no_rekening: external_exports.string().optional(),
+  nama_pemilik: external_exports.string().optional(),
+  jumlah: external_exports.number().positive(),
+  bukti_url: external_exports.string().optional(),
+  bukti_penyerahan_url: external_exports.string().optional()
 });
 var UpdatePencairanStatusSchema = external_exports.object({
   status: external_exports.enum(["menunggu", "diproses", "selesai"])
 });
+var UpdatePencairanSchema = CreatePencairanSchema.omit({ ajuan_id: true }).partial().extend({
+  status: external_exports.enum(["menunggu", "diproses", "selesai"]).optional()
+});
 var UpdateRoleSchema = external_exports.object({
-  role: external_exports.enum(["admin", "pengaju", "approver"])
+  role: external_exports.enum(["admin", "pengaju", "approver", "administrasi"])
 });
 var AddKeySchema = external_exports.object({
   alias: external_exports.string().min(1),
@@ -35725,13 +35750,13 @@ auth.post("/signup", async (c) => {
   return ok(c, { token, user: newUser, role: "pengaju" }, "Registrasi berhasil", 201);
 });
 auth.get("/me", authMiddleware, async (c) => {
-  const userId = c.get("userId");
+  const userId2 = c.get("userId");
   const meRows = await db_default`
     SELECT p.id, p.email, p.nama_lengkap, p.jabatan, p.instansi, p.no_hp, p.foto_url,
            p.created_at, ur.role
     FROM profiles p
     LEFT JOIN user_roles ur ON ur.user_id = p.id
-    WHERE p.id = ${userId}
+    WHERE p.id = ${userId2}
     LIMIT 1
   `;
   const meUser = meRows[0];
@@ -35739,7 +35764,7 @@ auth.get("/me", authMiddleware, async (c) => {
   return ok(c, { user: meUser, role: meUser.role ?? "pengaju" });
 });
 auth.patch("/profile", authMiddleware, async (c) => {
-  const userId = c.get("userId");
+  const userId2 = c.get("userId");
   const body = await c.req.json().catch(() => null);
   const parsed = UpdateProfileSchema.safeParse(body);
   if (!parsed.success) return fail(c, "Validasi gagal", 422, parsed.error.flatten());
@@ -35753,27 +35778,30 @@ auth.patch("/profile", authMiddleware, async (c) => {
       no_hp        = COALESCE(${no_hp ?? null}, no_hp),
       foto_url     = COALESCE(${foto_url ?? null}, foto_url),
       updated_at   = NOW()
-    WHERE id = ${userId}
+    WHERE id = ${userId2}
     RETURNING id, email, nama_lengkap, jabatan, instansi, no_hp, foto_url
   `;
   return ok(c, profileRows[0], "Profil berhasil diperbarui");
 });
 auth.patch("/password", authMiddleware, async (c) => {
-  const userId = c.get("userId");
+  const userId2 = c.get("userId");
   const body = await c.req.json().catch(() => null);
   const parsed = ChangePasswordSchema.safeParse(body);
   if (!parsed.success) return fail(c, "Validasi gagal", 422, parsed.error.flatten());
   const { current_password, new_password } = parsed.data;
-  const pwRows = await db_default`SELECT password FROM profiles WHERE id = ${userId} LIMIT 1`;
+  const pwRows = await db_default`SELECT password FROM profiles WHERE id = ${userId2} LIMIT 1`;
   if (!pwRows[0]) return fail(c, "User tidak ditemukan", 404);
   const pwUser = pwRows[0];
   const valid = await bcryptjs_default.compare(current_password, pwUser.password);
   if (!valid) return fail(c, "Password saat ini salah", 401);
   const hashed = await bcryptjs_default.hash(new_password, 10);
-  await db_default`UPDATE profiles SET password = ${hashed}, updated_at = NOW() WHERE id = ${userId}`;
+  await db_default`UPDATE profiles SET password = ${hashed}, updated_at = NOW() WHERE id = ${userId2}`;
   return ok(c, null, "Password berhasil diubah");
 });
 var auth_default = auth;
+
+// src/routes/ajuan.ts
+init_db();
 
 // src/middleware/rbac.ts
 function rbac(...allowedRoles) {
@@ -35790,10 +35818,29 @@ function rbac(...allowedRoles) {
 var ajuan = new Hono2();
 async function generateKode() {
   const year2 = (/* @__PURE__ */ new Date()).getFullYear();
-  const prefix = `AJU-${year2}-%`;
-  const rows = await db_default`SELECT COUNT(*) as total FROM ajuan_anggaran WHERE kode LIKE ${prefix}`;
-  const seq = (Number(rows[0]?.total ?? 0) + 1).toString().padStart(4, "0");
-  return `AJU-${year2}-${seq}`;
+  const prefix = `AJU-${year2}-`;
+  const rows = await db_default`
+    SELECT COALESCE(
+      MAX(CAST(NULLIF(regexp_replace(kode, '.*-', '', 'g'), '') AS INTEGER)), 
+      0
+    ) as last_seq
+    FROM ajuan_anggaran 
+    WHERE kode LIKE ${prefix + "%"}
+  `;
+  const nextSeq = (rows[0].last_seq || 0) + 1;
+  let finalKode = `${prefix}${nextSeq.toString().padStart(4, "0")}`;
+  let isUnique = false;
+  let attempts = 0;
+  while (!isUnique && attempts < 10) {
+    const check = await db_default`SELECT 1 FROM ajuan_anggaran WHERE kode = ${finalKode} LIMIT 1`;
+    if (check.length === 0) {
+      isUnique = true;
+    } else {
+      attempts++;
+      finalKode = `${prefix}${(nextSeq + attempts).toString().padStart(4, "0")}`;
+    }
+  }
+  return finalKode;
 }
 ajuan.get("/migrate", async (c) => {
   try {
@@ -35801,13 +35848,67 @@ ajuan.get("/migrate", async (c) => {
     await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS deletion_reason TEXT;`;
     await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS dokumen_url TEXT;`;
     await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS gambar_url TEXT;`;
-    return c.text("Migration successful!");
+    await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();`;
+    await db_default`
+      CREATE TABLE IF NOT EXISTS laporan_penggunaan (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        ajuan_id UUID REFERENCES ajuan_anggaran(id) ON DELETE CASCADE,
+        pengaju_id UUID REFERENCES profiles(id),
+        total_anggaran NUMERIC NOT NULL,
+        total_digunakan NUMERIC NOT NULL DEFAULT 0,
+        sisa_dana NUMERIC NOT NULL DEFAULT 0,
+        catatan TEXT,
+        foto_nota_urls TEXT[],
+        pdf_laporan_url TEXT,
+        status TEXT DEFAULT 'menunggu',
+        verifikator_id UUID REFERENCES profiles(id),
+        catatan_verifikasi TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    try {
+      await db_default`ALTER TYPE ajuan_status ADD VALUE IF NOT EXISTS 'selesai'`;
+    } catch (e) {
+    }
+    const syncRes = await db_default`
+      UPDATE ajuan_anggaran 
+      SET status = 'selesai' 
+      WHERE id IN (
+        SELECT ajuan_id FROM laporan_penggunaan WHERE status = 'disetujui'
+      ) AND status != 'selesai'
+      RETURNING id
+    `;
+    const existing = await db_default`SELECT kode FROM ajuan_anggaran ORDER BY kode DESC LIMIT 20`;
+    const seqCheck = await db_default`
+      SELECT 
+        kode,
+        regexp_replace(kode, '.*-', '', 'g') as extracted_seq,
+        CAST(NULLIF(regexp_replace(kode, '.*-', '', 'g'), '') AS INTEGER) as casted_seq
+      FROM ajuan_anggaran 
+      LIMIT 5
+    `;
+    const maxCheck = await db_default`
+      SELECT COALESCE(
+        MAX(CAST(NULLIF(regexp_replace(kode, '.*-', '', 'g'), '') AS INTEGER)), 
+        0
+      ) as last_seq
+      FROM ajuan_anggaran 
+      WHERE kode LIKE ${"AJU-" + (/* @__PURE__ */ new Date()).getFullYear() + "-%"}
+    `;
+    return c.json({
+      message: "Migration successful!",
+      existing_codes: existing.map((r) => r.kode),
+      debug_seq: seqCheck,
+      debug_max: maxCheck[0]
+    });
   } catch (err) {
-    return c.text("Migration failed: " + err.message, 500);
+    console.error("[migrate] Error:", err);
+    return c.json({ error: "Migration failed", message: err.message }, 500);
   }
 });
 ajuan.get("/", authMiddleware, async (c) => {
-  const userId = c.get("userId");
+  const userId2 = c.get("userId");
   const role = c.get("role");
   const { status, search, page = "1", limit = "20" } = c.req.query();
   const pageNum = Math.max(1, Number(page));
@@ -35815,7 +35916,7 @@ ajuan.get("/", authMiddleware, async (c) => {
   const offset = (pageNum - 1) * limitNum;
   let rows;
   let countRows;
-  const s = status === "all" ? null : status;
+  const s = !status || status === "all" ? null : status;
   const q = search ? `%${search}%` : null;
   if (role === "pengaju") {
     rows = await db_default`
@@ -35823,7 +35924,7 @@ ajuan.get("/", authMiddleware, async (c) => {
         EXISTS(SELECT 1 FROM laporan_penggunaan l WHERE l.ajuan_id = a.id) as has_laporan
       FROM ajuan_anggaran a 
       LEFT JOIN profiles p ON p.id = a.pengaju_id 
-      WHERE a.pengaju_id = ${userId} 
+      WHERE a.pengaju_id = ${userId2} 
         AND a.deleted_at IS NULL
         AND (${s}::text IS NULL OR a.status = ${s})
         AND (${q}::text IS NULL OR a.judul ILIKE ${q} OR a.kode ILIKE ${q})
@@ -35833,7 +35934,7 @@ ajuan.get("/", authMiddleware, async (c) => {
     countRows = await db_default`
       SELECT COUNT(*) as total 
       FROM ajuan_anggaran a 
-      WHERE a.pengaju_id = ${userId} 
+      WHERE a.pengaju_id = ${userId2} 
         AND a.deleted_at IS NULL
         AND (${s}::text IS NULL OR a.status = ${s})
         AND (${q}::text IS NULL OR a.judul ILIKE ${q} OR a.kode ILIKE ${q})
@@ -35865,46 +35966,51 @@ ajuan.get("/", authMiddleware, async (c) => {
   });
 });
 ajuan.post("/", authMiddleware, rbac("pengaju", "admin"), async (c) => {
-  const userId = c.get("userId");
-  const body = await c.req.json().catch(() => null);
-  const parsed = CreateAjuanSchema.safeParse(body);
-  if (!parsed.success) return fail(c, "Validasi gagal", 422, parsed.error.flatten());
-  const pendingReports = await db_default`
-    SELECT COUNT(*) as total 
-    FROM ajuan_anggaran a 
-    LEFT JOIN laporan_penggunaan l ON l.ajuan_id = a.id
-    WHERE a.pengaju_id = ${userId} 
-      AND a.status = 'dicairkan' 
-      AND a.deleted_at IS NULL
-      AND l.id IS NULL
-  `;
-  if (Number(pendingReports[0]?.total ?? 0) > 0) {
-    return fail(c, "Harap selesaikan laporan penggunaan anggaran sebelumnya sebelum membuat pengajuan baru.", 403);
-  }
-  const { judul, instansi: instansi2, rencana_penggunaan, items, gambar_url } = parsed.data;
-  const total = items.reduce((sum, i) => sum + i.qty * i.harga, 0);
-  const kode = await generateKode();
-  const ajuanRows = await db_default`
-    INSERT INTO ajuan_anggaran (kode, judul, pengaju_id, instansi, rencana_penggunaan, total, status, gambar_url)
-    VALUES (${kode}, ${judul}, ${userId}, ${instansi2}, ${rencana_penggunaan}, ${total}, 'menunggu', ${gambar_url ?? null})
-    RETURNING *
-  `;
-  const newAjuan = ajuanRows[0];
-  for (const item of items) {
-    const subtotal = item.qty * item.harga;
-    await db_default`
-      INSERT INTO ajuan_items (ajuan_id, nama_item, qty, satuan, harga, subtotal)
-      VALUES (${newAjuan.id}, ${item.nama_item}, ${item.qty}, ${item.satuan ?? null}, ${item.harga}, ${subtotal})
+  try {
+    const userId2 = c.get("userId");
+    const body = await c.req.json().catch(() => null);
+    const parsed = CreateAjuanSchema.safeParse(body);
+    if (!parsed.success) return fail(c, "Validasi gagal", 422, parsed.error.flatten());
+    const pendingReports = await db_default`
+      SELECT COUNT(*) as total 
+      FROM ajuan_anggaran a 
+      LEFT JOIN laporan_penggunaan l ON l.ajuan_id = a.id
+      WHERE a.pengaju_id = ${userId2} 
+        AND a.status = 'dicairkan' 
+        AND a.deleted_at IS NULL
+        AND l.id IS NULL
     `;
-  }
-  const approvers = await db_default`SELECT user_id FROM user_roles WHERE role = 'approver'`;
-  for (const ap of approvers) {
-    await db_default`
-      INSERT INTO notifikasi (user_id, judul, pesan, tipe, link)
-      VALUES (${ap.user_id}, 'Ajuan Baru Masuk', ${`Ajuan ${kode} \u2014 ${judul} menunggu persetujuan Anda.`}, 'info', ${`/ajuan/${newAjuan.id}`})
+    if (Number(pendingReports[0]?.total ?? 0) > 0) {
+      return fail(c, "Harap selesaikan laporan penggunaan anggaran sebelumnya sebelum membuat pengajuan baru.", 403);
+    }
+    const { judul, instansi: instansi2, rencana_penggunaan, items, gambar_url } = parsed.data;
+    const total = items.reduce((sum, i) => sum + i.qty * i.harga, 0);
+    const kode2 = await generateKode();
+    const ajuanRows = await db_default`
+      INSERT INTO ajuan_anggaran (kode, judul, pengaju_id, instansi, rencana_penggunaan, total, status, gambar_url)
+      VALUES (${kode2}, ${judul}, ${userId2}, ${instansi2}, ${rencana_penggunaan}, ${total}, 'menunggu', ${gambar_url ?? null})
+      RETURNING *
     `;
+    const newAjuan = ajuanRows[0];
+    for (const item of items) {
+      const subtotal = item.qty * item.harga;
+      await db_default`
+        INSERT INTO ajuan_items (ajuan_id, nama_item, qty, satuan, harga, subtotal)
+        VALUES (${newAjuan.id}, ${item.nama_item}, ${item.qty}, ${item.satuan ?? null}, ${item.harga}, ${subtotal})
+      `;
+    }
+    const approvers = await db_default`SELECT user_id FROM user_roles WHERE role = 'approver'`;
+    for (const ap of approvers) {
+      await db_default`
+        INSERT INTO notifikasi (user_id, judul, pesan, tipe, link)
+        VALUES (${ap.user_id}, 'Ajuan Baru Masuk', ${`Ajuan ${kode2} \u2014 ${judul} menunggu persetujuan Anda.`}, 'info', ${`/ajuan/${newAjuan.id}`})
+      `;
+    }
+    return ok(c, newAjuan, "Ajuan berhasil dibuat", 201);
+  } catch (err) {
+    console.error("[ajuan.post] Error:", err);
+    return fail(c, `Kesalahan Server: ${err.message} (Kode: ${kode ?? "N/A"}, User: ${userId ?? "N/A"})`, 500);
   }
-  return ok(c, newAjuan, "Ajuan berhasil dibuat", 201);
 });
 ajuan.get("/:id", authMiddleware, async (c) => {
   const { id } = c.req.param();
@@ -35958,21 +36064,27 @@ ajuan.patch("/:id/status", authMiddleware, rbac("approver", "admin"), async (c) 
   `;
   return ok(c, updatedRows[0], `Status berhasil diubah ke ${status}`);
 });
-ajuan.delete("/:id", authMiddleware, rbac("admin", "approver", "pengaju"), async (c) => {
-  const userId = c.get("userId");
+ajuan.delete("/:id", authMiddleware, rbac("admin", "pengaju"), async (c) => {
+  const userId2 = c.get("userId");
   const role = c.get("role");
   const { id } = c.req.param();
   const { reason } = c.req.query();
-  const rows = await db_default`SELECT id, pengaju_id, kode, judul FROM ajuan_anggaran WHERE id = ${id} LIMIT 1`;
+  const rows = await db_default`SELECT id, pengaju_id, kode, judul, status FROM ajuan_anggaran WHERE id = ${id} LIMIT 1`;
   if (!rows[0]) return fail(c, "Ajuan tidak ditemukan", 404);
   const ajuan2 = rows[0];
-  if (role === "pengaju" && ajuan2.pengaju_id !== userId) {
+  if (ajuan2.status === "selesai") {
+    return fail(c, "Ajuan yang sudah selesai tidak dapat dihapus", 403);
+  }
+  if (role === "pengaju" && ["disetujui", "dicairkan"].includes(ajuan2.status)) {
+    return fail(c, "Pengaju tidak dapat menghapus ajuan yang sudah disetujui atau dicairkan", 403);
+  }
+  if (role === "pengaju" && ajuan2.pengaju_id !== userId2) {
     return fail(c, "Tidak memiliki akses", 403);
   }
-  if (role === "admin" || role === "approver") {
+  if (role === "admin") {
     await db_default`
       UPDATE ajuan_anggaran 
-      SET deleted_at = NOW(), deletion_reason = ${reason ?? "Dihapus oleh Admin/Approver"}
+      SET deleted_at = NOW(), deletion_reason = ${reason ?? "Dihapus oleh Admin"}
       WHERE id = ${id}
     `;
     await db_default`
@@ -35987,12 +36099,13 @@ ajuan.delete("/:id", authMiddleware, rbac("admin", "approver", "pengaju"), async
 var ajuan_default = ajuan;
 
 // src/routes/pencairan.ts
+init_db();
 var pencairan = new Hono2();
 pencairan.get("/", authMiddleware, async (c) => {
   const role = c.get("role");
-  const userId = c.get("userId");
+  const userId2 = c.get("userId");
   let rows;
-  if (role === "admin") {
+  if (role === "admin" || role === "administrasi") {
     rows = await db_default`
       SELECT pc.*, a.kode, a.judul, p.nama_lengkap AS pengaju_nama, pr.nama_lengkap AS diproses_nama
       FROM pencairan pc
@@ -36006,18 +36119,18 @@ pencairan.get("/", authMiddleware, async (c) => {
       SELECT pc.*, a.kode, a.judul
       FROM pencairan pc
       LEFT JOIN ajuan_anggaran a ON a.id = pc.ajuan_id
-      WHERE a.pengaju_id = ${userId}
+      WHERE a.pengaju_id = ${userId2}
       ORDER BY pc.created_at DESC
     `;
   }
   return ok(c, rows);
 });
-pencairan.post("/", authMiddleware, rbac("admin"), async (c) => {
-  const userId = c.get("userId");
+pencairan.post("/", authMiddleware, rbac("admin", "administrasi"), async (c) => {
+  const userId2 = c.get("userId");
   const body = await c.req.json().catch(() => null);
   const parsed = CreatePencairanSchema.safeParse(body);
   if (!parsed.success) return fail(c, "Validasi gagal", 422, parsed.error.flatten());
-  const { ajuan_id, bank, no_rekening, nama_pemilik, jumlah } = parsed.data;
+  const { ajuan_id, bank, no_rekening, nama_pemilik, jumlah, metode, bukti_url, bukti_penyerahan_url } = parsed.data;
   const ajuanRows = await db_default`
     SELECT id, status, pengaju_id, kode, judul FROM ajuan_anggaran WHERE id = ${ajuan_id} LIMIT 1
   `;
@@ -36027,8 +36140,8 @@ pencairan.post("/", authMiddleware, rbac("admin"), async (c) => {
     return fail(c, 'Ajuan harus berstatus "disetujui" untuk dapat dicairkan', 422);
   }
   const newRows = await db_default`
-    INSERT INTO pencairan (ajuan_id, bank, no_rekening, nama_pemilik, jumlah, diproses_oleh, status)
-    VALUES (${ajuan_id}, ${bank}, ${no_rekening}, ${nama_pemilik}, ${jumlah}, ${userId}, 'diproses')
+    INSERT INTO pencairan (ajuan_id, bank, no_rekening, nama_pemilik, jumlah, diproses_oleh, status, metode, bukti_url, bukti_penyerahan_url)
+    VALUES (${ajuan_id}, ${bank ?? null}, ${no_rekening ?? null}, ${nama_pemilik ?? null}, ${jumlah}, ${userId2}, 'selesai', ${metode ?? "tunai"}, ${bukti_url ?? null}, ${bukti_penyerahan_url ?? null})
     RETURNING *
   `;
   const newPencairan = newRows[0];
@@ -36059,7 +36172,7 @@ pencairan.get("/:id", authMiddleware, async (c) => {
   if (!rows[0]) return fail(c, "Data pencairan tidak ditemukan", 404);
   return ok(c, rows[0]);
 });
-pencairan.patch("/:id/status", authMiddleware, rbac("admin"), async (c) => {
+pencairan.patch("/:id/status", authMiddleware, rbac("admin", "administrasi"), async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json().catch(() => null);
   const parsed = UpdatePencairanStatusSchema.safeParse(body);
@@ -36073,7 +36186,32 @@ pencairan.patch("/:id/status", authMiddleware, rbac("admin"), async (c) => {
   `;
   return ok(c, updatedRows[0], "Status pencairan berhasil diperbarui");
 });
-pencairan.delete("/:id", authMiddleware, rbac("admin"), async (c) => {
+pencairan.patch("/:id", authMiddleware, rbac("admin", "administrasi"), async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json().catch(() => null);
+  const parsed = UpdatePencairanSchema.safeParse(body);
+  if (!parsed.success) return fail(c, "Validasi gagal", 422, parsed.error.flatten());
+  const existingRows = await db_default`SELECT id FROM pencairan WHERE id = ${id} LIMIT 1`;
+  if (!existingRows[0]) return fail(c, "Pencairan tidak ditemukan", 404);
+  const { metode, bank, no_rekening, nama_pemilik, jumlah, bukti_url, bukti_penyerahan_url, status } = parsed.data;
+  const updatedRows = await db_default`
+    UPDATE pencairan 
+    SET 
+      metode = COALESCE(${metode ?? null}, metode),
+      bank = COALESCE(${bank ?? null}, bank),
+      no_rekening = COALESCE(${no_rekening ?? null}, no_rekening),
+      nama_pemilik = COALESCE(${nama_pemilik ?? null}, nama_pemilik),
+      jumlah = COALESCE(${jumlah ?? null}, jumlah),
+      bukti_url = COALESCE(${bukti_url ?? null}, bukti_url),
+      bukti_penyerahan_url = COALESCE(${bukti_penyerahan_url ?? null}, bukti_penyerahan_url),
+      status = COALESCE(${status ?? null}, status),
+      updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return ok(c, updatedRows[0], "Data pencairan berhasil diperbarui");
+});
+pencairan.delete("/:id", authMiddleware, rbac("admin", "administrasi"), async (c) => {
   const { id } = c.req.param();
   const rows = await db_default`SELECT id, ajuan_id FROM pencairan WHERE id = ${id} LIMIT 1`;
   if (!rows[0]) return fail(c, "Pencairan tidak ditemukan", 404);
@@ -36085,55 +36223,57 @@ pencairan.delete("/:id", authMiddleware, rbac("admin"), async (c) => {
 var pencairan_default = pencairan;
 
 // src/routes/notifikasi.ts
+init_db();
 var notifikasi = new Hono2();
 notifikasi.get("/", authMiddleware, async (c) => {
-  const userId = c.get("userId");
+  const userId2 = c.get("userId");
   const { unread } = c.req.query();
   let rows;
   if (unread === "true") {
     rows = await db_default`
       SELECT * FROM notifikasi
-      WHERE user_id = ${userId} AND dibaca = false
+      WHERE user_id = ${userId2} AND dibaca = false
       ORDER BY created_at DESC LIMIT 50
     `;
   } else {
     rows = await db_default`
       SELECT * FROM notifikasi
-      WHERE user_id = ${userId}
+      WHERE user_id = ${userId2}
       ORDER BY created_at DESC LIMIT 50
     `;
   }
   const countRows = await db_default`
-    SELECT COUNT(*) as total FROM notifikasi WHERE user_id = ${userId} AND dibaca = false
+    SELECT COUNT(*) as total FROM notifikasi WHERE user_id = ${userId2} AND dibaca = false
   `;
   return ok(c, { items: rows, unread_count: Number(countRows[0]?.total ?? 0) });
 });
 notifikasi.patch("/:id/baca", authMiddleware, async (c) => {
-  const userId = c.get("userId");
+  const userId2 = c.get("userId");
   const { id } = c.req.param();
   const rows = await db_default`SELECT id, user_id FROM notifikasi WHERE id = ${id} LIMIT 1`;
   if (!rows[0]) return fail(c, "Notifikasi tidak ditemukan", 404);
-  if (rows[0].user_id !== userId) return fail(c, "Forbidden", 403);
+  if (rows[0].user_id !== userId2) return fail(c, "Forbidden", 403);
   await db_default`UPDATE notifikasi SET dibaca = true WHERE id = ${id}`;
   return ok(c, null, "Notifikasi ditandai sudah dibaca");
 });
 notifikasi.post("/baca-semua", authMiddleware, async (c) => {
-  const userId = c.get("userId");
-  await db_default`UPDATE notifikasi SET dibaca = true WHERE user_id = ${userId} AND dibaca = false`;
+  const userId2 = c.get("userId");
+  await db_default`UPDATE notifikasi SET dibaca = true WHERE user_id = ${userId2} AND dibaca = false`;
   return ok(c, null, "Semua notifikasi telah ditandai sudah dibaca");
 });
 notifikasi.delete("/:id", authMiddleware, async (c) => {
-  const userId = c.get("userId");
+  const userId2 = c.get("userId");
   const { id } = c.req.param();
   const rows = await db_default`SELECT id, user_id FROM notifikasi WHERE id = ${id} LIMIT 1`;
   if (!rows[0]) return fail(c, "Notifikasi tidak ditemukan", 404);
-  if (rows[0].user_id !== userId) return fail(c, "Forbidden", 403);
+  if (rows[0].user_id !== userId2) return fail(c, "Forbidden", 403);
   await db_default`DELETE FROM notifikasi WHERE id = ${id}`;
   return ok(c, null, "Notifikasi berhasil dihapus");
 });
 var notifikasi_default = notifikasi;
 
 // src/routes/pengguna.ts
+init_db();
 var pengguna = new Hono2();
 pengguna.post("/", authMiddleware, rbac("admin"), async (c) => {
   const body = await c.req.json().catch(() => null);
@@ -36165,7 +36305,7 @@ pengguna.patch("/:id/password", authMiddleware, rbac("admin"), async (c) => {
   return ok(c, null, "Password pengguna berhasil direset");
 });
 pengguna.patch("/me", authMiddleware, async (c) => {
-  const userId = c.get("userId");
+  const userId2 = c.get("userId");
   const body = await c.req.json().catch(() => null);
   const parsed = UpdateProfileSchema.safeParse(body);
   if (!parsed.success) return fail(c, "Validasi gagal", 422, parsed.error.flatten());
@@ -36178,16 +36318,16 @@ pengguna.patch("/me", authMiddleware, async (c) => {
       instansi = COALESCE(${f.instansi ?? null}, instansi),
       no_hp = COALESCE(${f.no_hp ?? null}, no_hp),
       foto_url = COALESCE(${f.foto_url ?? null}, foto_url)
-    WHERE id = ${userId}
+    WHERE id = ${userId2}
   `;
   return ok(c, null, "Profil berhasil diperbarui");
 });
 pengguna.patch("/me/foto", authMiddleware, async (c) => {
-  const userId = c.get("userId");
+  const userId2 = c.get("userId");
   const body = await c.req.json().catch(() => null);
   const foto = body?.foto_url || body?.foto_base64;
   if (!foto) return fail(c, "Foto URL atau base64 wajib", 400);
-  await db_default`UPDATE profiles SET foto_url = ${foto} WHERE id = ${userId}`;
+  await db_default`UPDATE profiles SET foto_url = ${foto} WHERE id = ${userId2}`;
   return ok(c, { foto_url: foto }, "Foto profil berhasil diubah");
 });
 pengguna.get("/", authMiddleware, rbac("admin"), async (c) => {
@@ -36258,9 +36398,146 @@ pengguna.delete("/:id", authMiddleware, rbac("admin"), async (c) => {
 });
 var pengguna_default = pengguna;
 
+// src/routes/laporan.ts
+init_db();
+var laporan = new Hono2();
+laporan.get("/", authMiddleware, async (c) => {
+  const userId2 = c.get("userId");
+  const role = c.get("role");
+  const { page = "1", limit = "20" } = c.req.query();
+  const pageNum = Math.max(1, Number(page));
+  const limitNum = Math.min(100, Math.max(1, Number(limit)));
+  const offset = (pageNum - 1) * limitNum;
+  let rows;
+  let countRows;
+  if (role === "pengaju") {
+    rows = await db_default`
+      SELECT l.*, a.kode as ajuan_kode, a.judul as ajuan_judul, p.nama_lengkap as pengaju_nama
+      FROM laporan_penggunaan l
+      JOIN ajuan_anggaran a ON l.ajuan_id = a.id
+      JOIN profiles p ON l.pengaju_id = p.id
+      WHERE l.pengaju_id = ${userId2}
+      ORDER BY l.created_at DESC
+      LIMIT ${limitNum} OFFSET ${offset}
+    `;
+    countRows = await db_default`SELECT COUNT(*) as total FROM laporan_penggunaan WHERE pengaju_id = ${userId2}`;
+  } else {
+    rows = await db_default`
+      SELECT l.*, a.kode as ajuan_kode, a.judul as ajuan_judul, p.nama_lengkap as pengaju_nama
+      FROM laporan_penggunaan l
+      JOIN ajuan_anggaran a ON l.ajuan_id = a.id
+      JOIN profiles p ON l.pengaju_id = p.id
+      ORDER BY l.created_at DESC
+      LIMIT ${limitNum} OFFSET ${offset}
+    `;
+    countRows = await db_default`SELECT COUNT(*) as total FROM laporan_penggunaan`;
+  }
+  return c.json({
+    data: rows,
+    meta: { page: pageNum, limit: limitNum, total: Number(countRows[0]?.total ?? 0) },
+    error: null
+  });
+});
+laporan.post("/", authMiddleware, rbac("pengaju", "admin"), async (c) => {
+  const userId2 = c.get("userId");
+  const body = await c.req.json().catch(() => null);
+  const parsed = CreateLaporanSchema.safeParse(body);
+  if (!parsed.success) return fail(c, "Validasi gagal", 422, parsed.error.flatten());
+  const { ajuan_id, total_anggaran, total_digunakan, sisa_dana, catatan, foto_nota_urls, items } = parsed.data;
+  const ajuan2 = await db_default`SELECT id, status, pengaju_id FROM ajuan_anggaran WHERE id = ${ajuan_id} LIMIT 1`;
+  if (!ajuan2[0]) return fail(c, "Ajuan tidak ditemukan", 404);
+  if (ajuan2[0].status !== "dicairkan") {
+    return fail(c, "Hanya anggaran yang sudah dicairkan yang dapat dilaporkan", 400);
+  }
+  if (c.get("role") !== "admin" && ajuan2[0].pengaju_id !== userId2) {
+    return fail(c, "Anda tidak berwenang melaporkan anggaran ini", 403);
+  }
+  const existing = await db_default`SELECT id FROM laporan_penggunaan WHERE ajuan_id = ${ajuan_id} LIMIT 1`;
+  if (existing[0]) return fail(c, "Anggaran ini sudah dilaporkan sebelumnya", 400);
+  try {
+    const reportRows = await db_default`
+      INSERT INTO laporan_penggunaan (ajuan_id, pengaju_id, total_anggaran, total_digunakan, sisa_dana, catatan, foto_nota_urls)
+      VALUES (${ajuan_id}, ${userId2}, ${total_anggaran}, ${total_digunakan}, ${sisa_dana}, ${catatan ?? null}, ${foto_nota_urls})
+      RETURNING *
+    `;
+    const newReport = reportRows[0];
+    for (const item of items) {
+      await db_default`
+        INSERT INTO laporan_items (laporan_id, nama_item, qty, satuan, harga, subtotal)
+        VALUES (${newReport.id}, ${item.nama_item}, ${item.qty}, ${item.satuan ?? null}, ${item.harga}, ${item.qty * item.harga})
+      `;
+    }
+    const admins = await db_default`SELECT user_id FROM user_roles WHERE role = 'admin'`;
+    for (const admin of admins) {
+      await db_default`
+        INSERT INTO notifikasi (user_id, judul, pesan, tipe, link)
+        VALUES (${admin.user_id}, 'Laporan Penggunaan Baru', ${`Laporan untuk anggaran ${ajuan_id} telah diserahkan.`}, 'sukses', ${`/laporan/${newReport.id}`})
+      `;
+    }
+    return ok(c, newReport, "Laporan berhasil diserahkan", 201);
+  } catch (err) {
+    console.error("[laporan] Error saving report:", err);
+    return fail(c, "Gagal menyimpan laporan", 500);
+  }
+});
+laporan.get("/:id", authMiddleware, async (c) => {
+  const { id } = c.req.param();
+  const userId2 = c.get("userId");
+  const role = c.get("role");
+  const reportRows = await db_default`
+    SELECT l.*, a.kode as ajuan_kode, a.judul as ajuan_judul, p.nama_lengkap as pengaju_nama
+    FROM laporan_penggunaan l
+    JOIN ajuan_anggaran a ON l.ajuan_id = a.id
+    JOIN profiles p ON l.pengaju_id = p.id
+    WHERE l.id = ${id}
+    LIMIT 1
+  `;
+  if (!reportRows[0]) return fail(c, "Laporan tidak ditemukan", 404);
+  const report = reportRows[0];
+  if (role === "pengaju" && report.pengaju_id !== userId2) {
+    return fail(c, "Tidak memiliki akses", 403);
+  }
+  const items = await db_default`SELECT * FROM laporan_items WHERE laporan_id = ${id} ORDER BY created_at`;
+  return ok(c, { ...report, items });
+});
+laporan.patch("/:id/status", authMiddleware, rbac("approver", "admin", "administrasi"), async (c) => {
+  const verifikatorId = c.get("userId");
+  const { id } = c.req.param();
+  const { status, catatan } = await c.req.json();
+  if (!["disetujui", "ditolak"].includes(status)) {
+    return fail(c, "Status tidak valid", 400);
+  }
+  const reportRows = await db_default`SELECT ajuan_id, pengaju_id FROM laporan_penggunaan WHERE id = ${id} LIMIT 1`;
+  if (!reportRows[0]) return fail(c, "Laporan tidak ditemukan", 404);
+  const report = reportRows[0];
+  try {
+    const updatedRows = await db_default`
+      UPDATE laporan_penggunaan 
+      SET status = ${status}, verifikator_id = ${verifikatorId}, catatan_verifikasi = ${catatan ?? null}, updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *
+    `;
+    if (status === "disetujui") {
+      await db_default`UPDATE ajuan_anggaran SET status = 'selesai', updated_at = NOW() WHERE id = ${report.ajuan_id}`;
+    }
+    const label = status === "disetujui" ? "Diterima \u2705" : "Ditolak \u274C";
+    const tipe = status === "disetujui" ? "sukses" : "error";
+    await db_default`
+      INSERT INTO notifikasi (user_id, judul, pesan, tipe, link)
+      VALUES (${report.pengaju_id}, 'Update Laporan Penggunaan', ${`Laporan Anda telah ${label}.`}, ${tipe}, ${`/laporan/${id}`})
+    `;
+    return ok(c, updatedRows[0], `Laporan berhasil ${status}`);
+  } catch (err) {
+    console.error("[laporan] Error verifying report:", err);
+    return fail(c, "Gagal memproses verifikasi laporan", 500);
+  }
+});
+var laporan_default = laporan;
+
 // src/routes/audit.ts
+init_db();
 var audit = new Hono2();
-audit.get("/", authMiddleware, rbac("admin"), async (c) => {
+audit.get("/", authMiddleware, rbac("admin", "administrasi"), async (c) => {
   const { page = "1", limit = "30", modul, user_id } = c.req.query();
   const pageNum = Math.max(1, Number(page));
   const limitNum = Math.min(100, Math.max(1, Number(limit)));
@@ -36310,6 +36587,9 @@ audit.get("/", authMiddleware, rbac("admin"), async (c) => {
   });
 });
 var audit_default = audit;
+
+// src/routes/ai.ts
+init_db();
 
 // node_modules/@google/generative-ai/dist/index.mjs
 var SchemaType;
@@ -37319,6 +37599,7 @@ var GoogleGenerativeAI = class {
 };
 
 // src/services/ai-key-manager.ts
+init_db();
 var MAX_ERROR_COUNT = 5;
 async function getKey() {
   const rows = await db_default`
@@ -37662,6 +37943,7 @@ ai.get("/cron/reset-keys", async (c) => {
 var ai_default = ai;
 
 // src/routes/instansi.ts
+init_db();
 var instansi = new Hono2();
 var CreateInstansiSchema = external_exports.object({
   nama: external_exports.string().min(2)
@@ -37704,14 +37986,17 @@ instansi.delete("/:id", authMiddleware, rbac("admin"), async (c) => {
 var instansi_default = instansi;
 
 // src/routes/settings.ts
+init_db();
 var import_cloudinary = require("cloudinary");
 var settings = new Hono2();
 settings.post("/cloudinary-sign", authMiddleware, async (c) => {
-  const rows = await db_default`SELECT value FROM settings WHERE key = 'instansi' LIMIT 1`;
-  if (!rows[0]) return fail(c, "Settings not found", 404);
-  const s = rows[0].value;
+  const rows = await db_default`SELECT key, value FROM settings WHERE key IN ('instansi', 'cloudinary')`;
+  let s = {};
+  const instansi2 = rows.find((r) => r.key === "instansi")?.value;
+  const direct = rows.find((r) => r.key === "cloudinary")?.value;
+  s = { ...instansi2, ...direct };
   if (!s.cloudinary_api_key || !s.cloudinary_api_secret || !s.cloudinary_cloud_name) {
-    return fail(c, "Cloudinary keys not configured in settings", 400);
+    return fail(c, "Konfigurasi Cloudinary tidak ditemukan di database. Silakan atur di menu Pengaturan.", 400);
   }
   const timestamp = Math.round((/* @__PURE__ */ new Date()).getTime() / 1e3);
   const params_to_sign = {
@@ -37749,114 +38034,13 @@ settings.patch("/:key", authMiddleware, rbac("admin"), async (c) => {
 });
 var settings_default = settings;
 
-// src/routes/laporan.ts
-var laporan = new Hono2();
-laporan.get("/", authMiddleware, async (c) => {
-  const userId = c.get("userId");
-  const role = c.get("role");
-  const { page = "1", limit = "20" } = c.req.query();
-  const pageNum = Math.max(1, Number(page));
-  const limitNum = Math.min(100, Math.max(1, Number(limit)));
-  const offset = (pageNum - 1) * limitNum;
-  let rows;
-  let countRows;
-  if (role === "pengaju") {
-    rows = await db_default`
-      SELECT l.*, a.kode as ajuan_kode, a.judul as ajuan_judul, p.nama_lengkap as pengaju_nama
-      FROM laporan_penggunaan l
-      JOIN ajuan_anggaran a ON l.ajuan_id = a.id
-      JOIN profiles p ON l.pengaju_id = p.id
-      WHERE l.pengaju_id = ${userId}
-      ORDER BY l.created_at DESC
-      LIMIT ${limitNum} OFFSET ${offset}
-    `;
-    countRows = await db_default`SELECT COUNT(*) as total FROM laporan_penggunaan WHERE pengaju_id = ${userId}`;
-  } else {
-    rows = await db_default`
-      SELECT l.*, a.kode as ajuan_kode, a.judul as ajuan_judul, p.nama_lengkap as pengaju_nama
-      FROM laporan_penggunaan l
-      JOIN ajuan_anggaran a ON l.ajuan_id = a.id
-      JOIN profiles p ON l.pengaju_id = p.id
-      ORDER BY l.created_at DESC
-      LIMIT ${limitNum} OFFSET ${offset}
-    `;
-    countRows = await db_default`SELECT COUNT(*) as total FROM laporan_penggunaan`;
-  }
-  return c.json({
-    data: rows,
-    meta: { page: pageNum, limit: limitNum, total: Number(countRows[0]?.total ?? 0) },
-    error: null
-  });
-});
-laporan.post("/", authMiddleware, rbac("pengaju", "admin"), async (c) => {
-  const userId = c.get("userId");
-  const body = await c.req.json().catch(() => null);
-  const parsed = CreateLaporanSchema.safeParse(body);
-  if (!parsed.success) return fail(c, "Validasi gagal", 422, parsed.error.flatten());
-  const { ajuan_id, total_anggaran, total_digunakan, sisa_dana, catatan, foto_nota_urls, items } = parsed.data;
-  const ajuan2 = await db_default`SELECT id, status, pengaju_id FROM ajuan_anggaran WHERE id = ${ajuan_id} LIMIT 1`;
-  if (!ajuan2[0]) return fail(c, "Ajuan tidak ditemukan", 404);
-  if (ajuan2[0].status !== "dicairkan") return fail(c, "Hanya anggaran yang sudah dicairkan yang dapat dilaporkan", 400);
-  if (c.get("role") !== "admin" && ajuan2[0].pengaju_id !== userId) {
-    return fail(c, "Anda tidak berwenang melaporkan anggaran ini", 403);
-  }
-  const existing = await db_default`SELECT id FROM laporan_penggunaan WHERE ajuan_id = ${ajuan_id} LIMIT 1`;
-  if (existing[0]) return fail(c, "Anggaran ini sudah dilaporkan sebelumnya", 400);
-  try {
-    const reportRows = await db_default`
-      INSERT INTO laporan_penggunaan (ajuan_id, pengaju_id, total_anggaran, total_digunakan, sisa_dana, catatan, foto_nota_urls)
-      VALUES (${ajuan_id}, ${userId}, ${total_anggaran}, ${total_digunakan}, ${sisa_dana}, ${catatan ?? null}, ${foto_nota_urls})
-      RETURNING *
-    `;
-    const newReport = reportRows[0];
-    for (const item of items) {
-      await db_default`
-        INSERT INTO laporan_items (laporan_id, nama_item, qty, satuan, harga, subtotal)
-        VALUES (${newReport.id}, ${item.nama_item}, ${item.qty}, ${item.satuan ?? null}, ${item.harga}, ${item.qty * item.harga})
-      `;
-    }
-    const admins = await db_default`SELECT user_id FROM user_roles WHERE role = 'admin'`;
-    for (const admin of admins) {
-      await db_default`
-        INSERT INTO notifikasi (user_id, judul, pesan, tipe, link)
-        VALUES (${admin.user_id}, 'Laporan Penggunaan Baru', ${`Laporan untuk anggaran ${ajuan_id} telah diserahkan.`}, 'sukses', ${`/laporan/${newReport.id}`})
-      `;
-    }
-    return ok(c, newReport, "Laporan berhasil diserahkan", 201);
-  } catch (err) {
-    console.error("[laporan] Error saving report:", err);
-    return fail(c, "Gagal menyimpan laporan", 500);
-  }
-});
-laporan.get("/:id", authMiddleware, async (c) => {
-  const { id } = c.req.param();
-  const userId = c.get("userId");
-  const role = c.get("role");
-  const reportRows = await db_default`
-    SELECT l.*, a.kode as ajuan_kode, a.judul as ajuan_judul, p.nama_lengkap as pengaju_nama
-    FROM laporan_penggunaan l
-    JOIN ajuan_anggaran a ON l.ajuan_id = a.id
-    JOIN profiles p ON l.pengaju_id = p.id
-    WHERE l.id = ${id}
-    LIMIT 1
-  `;
-  if (!reportRows[0]) return fail(c, "Laporan tidak ditemukan", 404);
-  const report = reportRows[0];
-  if (role === "pengaju" && report.pengaju_id !== userId) {
-    return fail(c, "Tidak memiliki akses", 403);
-  }
-  const items = await db_default`SELECT * FROM laporan_items WHERE laporan_id = ${id} ORDER BY created_at`;
-  return ok(c, { ...report, items });
-});
-var laporan_default = laporan;
-
 // src/index.ts
 var app = new Hono2();
 app.use(
   "*",
   cors({
-    origin: "*",
-    // Allow all during debug to ensure CORS isn't the cause of 500
+    origin: (origin) => origin,
+    // Echo back origin to support credentials if needed, or use '*' with credentials: false
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "PUT", "OPTIONS"],
     allowHeaders: ["Authorization", "Content-Type", "x-cron-secret"],
     credentials: true
@@ -37937,7 +38121,6 @@ app.route("/api/audit", audit_default);
 app.route("/api/ai", ai_default);
 app.route("/api/instansi", instansi_default);
 app.route("/api/settings", settings_default);
-app.route("/api/laporan", laporan_default);
 app.route("/auth", auth_default);
 app.route("/ajuan", ajuan_default);
 app.route("/pencairan", pencairan_default);
@@ -37950,11 +38133,34 @@ app.route("/instansi", instansi_default);
 app.route("/settings", settings_default);
 app.get("/api/health", (c) => c.json({ status: "ok", env: "vercel" }));
 app.get("/health", (c) => c.json({ status: "ok", env: "vercel" }));
+app.get("/api/debug-db", async (c) => {
+  try {
+    const { sql: sql2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+    const result = await sql2`SELECT 1 as connected`;
+    const tables = await sql2`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+    return c.json({
+      status: "ok",
+      database: "connected",
+      check: result,
+      tables: tables.map((t) => t.table_name)
+    });
+  } catch (err) {
+    return c.json({
+      status: "error",
+      message: err.message,
+      stack: err.stack
+    }, 500);
+  }
+});
 app.notFound(
   (c) => c.json({ data: null, error: `Route ${c.req.method} ${c.req.path} not found`, message: null }, 404)
 );
 app.onError((err, c) => {
-  console.error("[server] Unhandled error:", err);
+  console.error(`[server] Unhandled error [${c.req.method} ${c.req.path}]:`, err);
   return c.json(
     {
       data: null,
@@ -37969,7 +38175,7 @@ app.onError((err, c) => {
 var index_default = app;
 
 // src/entry-cpanel.ts
-dotenv.config({ path: import_path.default.resolve(process.cwd(), ".env") });
+dotenv2.config({ path: import_path.default.resolve(process.cwd(), ".env") });
 if (typeof globalThis.Request === "undefined") {
   const undici = require_undici();
   Object.assign(globalThis, {

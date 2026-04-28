@@ -11,40 +11,29 @@ async function generateKode(): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `AJU-${year}-`;
   
-  // 1. Ambil kode tertinggi sebagai referensi awal
+  // Ambil nomor urut tertinggi langsung dari database menggunakan regex/substring
   const rows = await sql`
-    SELECT kode 
+    SELECT COALESCE(
+      MAX(CAST(NULLIF(regexp_replace(kode, '.*-', '', 'g'), '') AS INTEGER)), 
+      0
+    ) as last_seq
     FROM ajuan_anggaran 
-    WHERE kode LIKE ${prefix + '%'} 
-    ORDER BY LENGTH(kode) DESC, kode DESC 
-    LIMIT 1
+    WHERE kode LIKE ${prefix + '%'}
   `;
-  
-  let seq = 1;
-  if (rows.length > 0) {
-    const lastKode = (rows[0] as any).kode;
-    const parts = lastKode.split('-');
-    const lastPart = parts[parts.length - 1];
-    const lastSeq = parseInt(lastPart);
-    if (!isNaN(lastSeq)) {
-      seq = lastSeq + 1;
-    }
-  }
 
-  // 2. Loop pengecekan untuk memastikan kode benar-benar belum ada
-  // (Mengatasi masalah race condition atau data lama yang tidak berurutan)
-  let finalKode = `${prefix}${seq.toString().padStart(4, '0')}`;
+  const nextSeq = ((rows[0] as any).last_seq || 0) + 1;
+  let finalKode = `${prefix}${nextSeq.toString().padStart(4, '0')}`;
+  
+  // Double check uniqueness as a fallback
   let isUnique = false;
   let attempts = 0;
-
-  while (!isUnique && attempts < 20) {
-    const check = await sql`SELECT 1 FROM ajuan_anggaran WHERE kode = ${finalKode}`;
+  while (!isUnique && attempts < 10) {
+    const check = await sql`SELECT 1 FROM ajuan_anggaran WHERE kode = ${finalKode} LIMIT 1`;
     if (check.length === 0) {
       isUnique = true;
     } else {
-      seq++;
-      finalKode = `${prefix}${seq.toString().padStart(4, '0')}`;
       attempts++;
+      finalKode = `${prefix}${(nextSeq + attempts).toString().padStart(4, '0')}`;
     }
   }
   
@@ -94,10 +83,30 @@ ajuan.get('/migrate', async (c) => {
       RETURNING id
     `;
     
+    // Debug Info
+    const existing = await sql`SELECT kode FROM ajuan_anggaran ORDER BY kode DESC LIMIT 20`;
+    const seqCheck = await sql`
+      SELECT 
+        kode,
+        regexp_replace(kode, '.*-', '', 'g') as extracted_seq,
+        CAST(NULLIF(regexp_replace(kode, '.*-', '', 'g'), '') AS INTEGER) as casted_seq
+      FROM ajuan_anggaran 
+      LIMIT 5
+    `;
+    const maxCheck = await sql`
+      SELECT COALESCE(
+        MAX(CAST(NULLIF(regexp_replace(kode, '.*-', '', 'g'), '') AS INTEGER)), 
+        0
+      ) as last_seq
+      FROM ajuan_anggaran 
+      WHERE kode LIKE ${'AJU-' + new Date().getFullYear() + '-%'}
+    `;
+
     return c.json({
       message: 'Migration successful!',
-      synced_count: syncRes.length,
-      note: 'Tables and columns verified.'
+      existing_codes: existing.map(r => r.kode),
+      debug_seq: seqCheck,
+      debug_max: maxCheck[0]
     });
   } catch (err: any) {
     console.error('[migrate] Error:', err);
@@ -219,7 +228,7 @@ ajuan.post('/', authMiddleware, rbac('pengaju', 'admin'), async (c) => {
     return ok(c, newAjuan, 'Ajuan berhasil dibuat', 201);
   } catch (err: any) {
     console.error('[ajuan.post] Error:', err);
-    return fail(c, 'Terjadi kesalahan pada server: ' + err.message, 500);
+    return fail(c, `Kesalahan Server: ${err.message} (Kode: ${kode ?? 'N/A'}, User: ${userId ?? 'N/A'})`, 500);
   }
 });
 
