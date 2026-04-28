@@ -47,6 +47,31 @@ app.get('/', (c) => {
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/api/health', (c) => c.json({ status: 'ok', time: new Date().toISOString() }));
 
+// ─── DEBUG DB ─────────────────────────────────────────────────────────────────
+app.get('/api/debug-db', async (c) => {
+  try {
+    const { sql } = await import('../src/db');
+    const result = await sql`SELECT 1 as connected`;
+    const tables = await sql`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+    return c.json({
+      status: 'ok',
+      database: 'connected',
+      check: result,
+      tables: tables.map((t: any) => t.table_name)
+    });
+  } catch (err: any) {
+    return c.json({
+      status: 'error',
+      message: err.message,
+      stack: err.stack
+    }, 500);
+  }
+});
+
 // ─── IMPORT ROUTES ────────────────────────────────────────────────────────────
 // Kita tetap mengimport dari file lain, TAPI kita pastikan bundler Vercel membacanya.
 import authRoutes from '../src/routes/auth';

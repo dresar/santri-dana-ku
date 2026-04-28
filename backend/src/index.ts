@@ -127,6 +127,31 @@ app.route('/settings', settingsRoutes);
 app.get('/api/health', (c) => c.json({ status: 'ok', env: 'vercel' }));
 app.get('/health', (c) => c.json({ status: 'ok', env: 'vercel' }));
 
+// Debug Database
+app.get('/api/debug-db', async (c) => {
+  try {
+    const { sql } = await import('./db');
+    const result = await sql`SELECT 1 as connected`;
+    const tables = await sql`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+    return c.json({
+      status: 'ok',
+      database: 'connected',
+      check: result,
+      tables: tables.map((t: any) => t.table_name)
+    });
+  } catch (err: any) {
+    return c.json({
+      status: 'error',
+      message: err.message,
+      stack: err.stack
+    }, 500);
+  }
+});
+
 // ─── Global 404 ──────────────────────────────────────────────────────────────
 app.notFound((c) =>
   c.json({ data: null, error: `Route ${c.req.method} ${c.req.path} not found`, message: null }, 404),
@@ -136,11 +161,11 @@ app.notFound((c) =>
 app.onError((err, c) => {
   console.error('[server] Unhandled error:', err);
   return c.json(
-    { 
-      data: null, 
-      error: 'Internal server error', 
+    {
+      data: null,
+      error: 'Internal server error',
       message: err.message, // Menampilkan pesan error asli agar Anda bisa lihat di browser
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     },
     500,
   );

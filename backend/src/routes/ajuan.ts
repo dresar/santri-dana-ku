@@ -54,19 +54,37 @@ async function generateKode(): Promise<string> {
 // Temporary migration route - run once by visiting /api/ajuan/migrate
 ajuan.get('/migrate', async (c) => {
   try {
+    // 1. Add missing columns to ajuan_anggaran
     await sql`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;`;
     await sql`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS deletion_reason TEXT;`;
     await sql`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS dokumen_url TEXT;`;
     await sql`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS gambar_url TEXT;`;
+    await sql`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();`;
+
+    // 2. Ensure laporan_penggunaan table exists (it's often missing in older deploys)
+    await sql`
+      CREATE TABLE IF NOT EXISTS laporan_penggunaan (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        ajuan_id UUID REFERENCES ajuan_anggaran(id) ON DELETE CASCADE,
+        pengaju_id UUID REFERENCES profiles(id),
+        total_anggaran NUMERIC NOT NULL,
+        total_digunakan NUMERIC NOT NULL DEFAULT 0,
+        sisa_dana NUMERIC NOT NULL DEFAULT 0,
+        catatan TEXT,
+        foto_nota_urls TEXT[],
+        pdf_laporan_url TEXT,
+        status TEXT DEFAULT 'menunggu',
+        verifikator_id UUID REFERENCES profiles(id),
+        catatan_verifikasi TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
+    // 3. Update ENUMs
+    try { await sql`ALTER TYPE ajuan_status ADD VALUE IF NOT EXISTS 'selesai'`; } catch (e) {}
     
-    // Update ENUMs
-    try {
-      await sql`ALTER TYPE ajuan_status ADD VALUE IF NOT EXISTS 'selesai'`;
-    } catch (e) {
-      // already exists
-    }
-    
-    // Sync statuses for already approved reports
+    // 4. Sync statuses
     const syncRes = await sql`
       UPDATE ajuan_anggaran 
       SET status = 'selesai' 
@@ -76,9 +94,14 @@ ajuan.get('/migrate', async (c) => {
       RETURNING id
     `;
     
-    return c.text(`Migration successful! Synced ${syncRes.length} ajuan to 'selesai'.`);
+    return c.json({
+      message: 'Migration successful!',
+      synced_count: syncRes.length,
+      note: 'Tables and columns verified.'
+    });
   } catch (err: any) {
-    return c.text('Migration failed: ' + err.message, 500);
+    console.error('[migrate] Error:', err);
+    return c.json({ error: 'Migration failed', message: err.message }, 500);
   }
 });
 
