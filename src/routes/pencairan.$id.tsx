@@ -43,13 +43,13 @@ function PencairanDetailPage() {
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
       doc.setFont("helvetica", "bold");
-      doc.text(settings?.nama_instansi?.substring(0, 1) || "R", 20, 30);
+      doc.text(settings?.nama?.substring(0, 1) || "R", 20, 30);
       
       doc.setFontSize(18);
       doc.text("BUKTI PENCAIRAN DANA", 40, 25);
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
-      doc.text(settings?.nama_instansi || "Pesantren Modern Raudhatussalam Mahato", 40, 32);
+      doc.text(settings?.nama || "Pesantren Modern Raudhatussalam Mahato", 40, 32);
       doc.text(settings?.alamat || "Mahato, Riau", 40, 37);
 
       // Content

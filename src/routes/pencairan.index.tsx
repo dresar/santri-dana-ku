@@ -84,33 +84,49 @@ function PencairanPage() {
 
   const downloadKwitansi = (h: any) => {
     try {
+      console.log("Downloading Kwitansi for:", h);
       toast.info("Sedang menyiapkan Kwitansi...");
-      const doc = new jsPDF();
+      
+      const doc = new jsPDF({
+        orientation: "p",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const amount = Number(h.jumlah || h.total || 0);
+      const formattedAmount = isNaN(amount) ? "Rp 0" : formatRupiah(amount);
+
       doc.setFontSize(18);
       doc.text("KWITANSI PENYERAHAN DANA", 105, 20, { align: "center" });
       doc.setFontSize(10);
       doc.text("PESANTREN MODERN RAUDHATUSSALAM MAHATO", 105, 28, { align: "center" });
       doc.line(20, 32, 190, 32);
+      
       doc.setFontSize(12);
-      doc.text(`No. Referensi : ${h.kode}`, 20, 45);
-      doc.text(`Tanggal        : ${new Date(h.created_at).toLocaleDateString("id-ID")}`, 20, 52);
+      doc.text(`No. Referensi : ${h.kode || "-"}`, 20, 45);
+      doc.text(`Tanggal        : ${h.created_at ? new Date(h.created_at).toLocaleDateString("id-ID") : "-"}`, 20, 52);
       doc.text("Telah diserahkan dana untuk keperluan:", 20, 65);
+      
       doc.setFont("helvetica", "bold");
       doc.text(h.judul || "-", 20, 72);
+      
       doc.setFont("helvetica", "normal");
       doc.text(`Sebesar :`, 20, 85);
+      
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      doc.text(formatRupiah(Number(h.jumlah || h.total || 0)), 45, 85);
+      doc.text(formattedAmount, 45, 85);
+      
       doc.setFontSize(12);
       doc.setFont("helvetica", "normal");
       doc.text("Penerima,", 150, 105, { align: "center" });
       doc.text(`( ${h.nama_pemilik || h.pengaju_nama || "................."} )`, 150, 135, { align: "center" });
-      doc.save(`Kwitansi_${h.kode}.pdf`);
+      
+      doc.save(`Kwitansi_${h.kode || "dokumen"}.pdf`);
       toast.success("Kwitansi berhasil diunduh");
     } catch (err) {
-      console.error(err);
-      toast.error("Gagal membuat PDF Kwitansi");
+      console.error("PDF Export Error:", err);
+      toast.error("Gagal membuat PDF Kwitansi", { description: (err as Error).message });
     }
   };
 
