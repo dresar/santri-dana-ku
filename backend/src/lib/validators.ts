@@ -45,7 +45,12 @@ export const CreateAjuanSchema = z.object({
   instansi: z.string().min(2),
   rencana_penggunaan: z.string().min(10),
   gambar_url: z.string().optional(),
+  target_approver_id: z.string().uuid().optional(),
   items: z.array(AjuanItemSchema).min(1),
+  metode_pencairan: z.enum(['tunai', 'transfer']).optional().default('tunai'),
+  bank: z.string().optional(),
+  nomor_rekening: z.string().optional(),
+  nama_rekening: z.string().optional(),
 });
 
 export const UpdateAjuanStatusSchema = z.object({

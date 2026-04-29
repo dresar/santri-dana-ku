@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import { UpdateRoleSchema, CreateUserAdminSchema, UpdateProfileSchema } from '../lib/validators';
 
 const pengguna = new Hono();
+console.log('[backend] Router pengguna diinisialisasi');
 
 pengguna.post('/', authMiddleware, rbac('admin'), async (c) => {
   const body = await c.req.json().catch(() => null);
@@ -120,15 +121,19 @@ pengguna.get('/', authMiddleware, rbac('admin'), async (c) => {
 
 pengguna.get('/:id', authMiddleware, rbac('admin'), async (c) => {
   const { id } = c.req.param();
-  const rows = await sql`
-    SELECT p.*, ur.role FROM profiles p
-    LEFT JOIN user_roles ur ON ur.user_id = p.id
-    WHERE p.id = ${id} LIMIT 1
-  `;
-  if (!rows[0]) return fail(c, 'Pengguna tidak ditemukan', 404);
+  try {
+    const rows = await sql`
+      SELECT p.*, ur.role FROM profiles p
+      LEFT JOIN user_roles ur ON ur.user_id = p.id
+      WHERE p.id = ${id} LIMIT 1
+    `;
+    if (!rows[0]) return fail(c, 'Pengguna tidak ditemukan', 404);
 
-  const ajuanCountRows = await sql`SELECT COUNT(*) as total FROM ajuan_anggaran WHERE pengaju_id = ${id}`;
-  return ok(c, { ...(rows[0] as any), ajuan_count: Number((ajuanCountRows[0] as any)?.total ?? 0) });
+    const ajuanCountRows = await sql`SELECT COUNT(*) as total FROM ajuan_anggaran WHERE pengaju_id = ${id}`;
+    return ok(c, { ...(rows[0] as any), ajuan_count: Number((ajuanCountRows[0] as any)?.total ?? 0) });
+  } catch (err: any) {
+    return fail(c, err.message, 500);
+  }
 });
 
 pengguna.patch('/:id/role', authMiddleware, rbac('admin'), async (c) => {

@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/PageHeader";
 // Detail Route
 import { formatRupiah } from "@/lib/utils";
 import { usePencairanDetail, useSettings } from "@/lib/queries";
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 import { 
   FileText, 
   Wallet, 
@@ -31,104 +31,111 @@ function PencairanDetailPage() {
 
   const downloadPDF = () => {
     if (!pc) return;
-    const doc = new jsPDF();
-    
-    // Header background
-    doc.setFillColor(15, 23, 42); // slate-900
-    doc.rect(0, 0, 210, 45, 'F');
-    
-    // Logo placeholder / Text
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text(settings?.nama_instansi?.substring(0, 1) || "R", 20, 30);
-    
-    doc.setFontSize(18);
-    doc.text("BUKTI PENCAIRAN DANA", 40, 25);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(settings?.nama_instansi || "Pesantren Modern Raudhatussalam Mahato", 40, 32);
-    doc.text(settings?.alamat || "Mahato, Riau", 40, 37);
-
-    // Content
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("INFORMASI TRANSAKSI", 20, 65);
-    doc.setDrawColor(226, 232, 240);
-    doc.line(20, 67, 190, 67);
-    
-    doc.setFontSize(10);
-    let y = 75;
-    const row = (label: string, value: string, isBold = false) => {
+    try {
+      toast.info("Sedang menyiapkan dokumen PDF...");
+      const doc = new jsPDF();
+      
+      // Header background
+      doc.setFillColor(15, 23, 42); // slate-900
+      doc.rect(0, 0, 210, 45, 'F');
+      
+      // Logo placeholder / Text
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
       doc.setFont("helvetica", "bold");
-      doc.text(label, 20, y);
-      if (isBold) doc.setFont("helvetica", "bold");
-      else doc.setFont("helvetica", "normal");
-      doc.text(": " + value, 70, y);
-      y += 8;
-    };
+      doc.text(settings?.nama_instansi?.substring(0, 1) || "R", 20, 30);
+      
+      doc.setFontSize(18);
+      doc.text("BUKTI PENCAIRAN DANA", 40, 25);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(settings?.nama_instansi || "Pesantren Modern Raudhatussalam Mahato", 40, 32);
+      doc.text(settings?.alamat || "Mahato, Riau", 40, 37);
 
-    row("Kode Referensi", pc.kode || "-");
-    row("Judul Pengajuan", pc.judul || "-");
-    row("Tanggal Pencairan", new Date(pc.created_at).toLocaleString("id-ID", { dateStyle: 'full' }));
-    row("Waktu Transaksi", new Date(pc.created_at).toLocaleTimeString("id-ID"));
-    row("Status", (pc.status || "selesai").toUpperCase(), true);
-    
-    y += 10;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("DETAIL PEMBAYARAN", 20, y);
-    doc.line(20, y+2, 190, y+2);
-    y += 12;
-    doc.setFontSize(10);
-    
-    row("Metode", (pc.metode || "tunai").toUpperCase());
-    if (pc.metode === "transfer") {
-      row("Bank Tujuan", pc.bank || "-");
-      row("Nomor Rekening", pc.no_rekening || "-");
-      row("Atas Nama", pc.nama_pemilik || "-");
-    } else {
-      row("Penerima Tunai", pc.nama_pemilik || pc.pengaju_nama || "-");
+      // Content
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("INFORMASI TRANSAKSI", 20, 65);
+      doc.setDrawColor(226, 232, 240);
+      doc.line(20, 67, 190, 67);
+      
+      doc.setFontSize(10);
+      let y = 75;
+      const row = (label: string, value: string, isBold = false) => {
+        doc.setFont("helvetica", "bold");
+        doc.text(label, 20, y);
+        if (isBold) doc.setFont("helvetica", "bold");
+        else doc.setFont("helvetica", "normal");
+        doc.text(": " + value, 70, y);
+        y += 8;
+      };
+
+      row("Kode Referensi", pc.kode || "-");
+      row("Judul Pengajuan", pc.judul || "-");
+      row("Tanggal Pencairan", new Date(pc.created_at).toLocaleString("id-ID", { dateStyle: 'full' }));
+      row("Waktu Transaksi", new Date(pc.created_at).toLocaleTimeString("id-ID"));
+      row("Status", (pc.status || "selesai").toUpperCase(), true);
+      
+      y += 10;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text("DETAIL PEMBAYARAN", 20, y);
+      doc.line(20, y+2, 190, y+2);
+      y += 12;
+      doc.setFontSize(10);
+      
+      row("Metode", (pc.metode || "tunai").toUpperCase());
+      if (pc.metode === "transfer") {
+        row("Bank Tujuan", pc.bank || "-");
+        row("Nomor Rekening", pc.no_rekening || "-");
+        row("Atas Nama", pc.nama_pemilik || "-");
+      } else {
+        row("Penerima Tunai", pc.nama_pemilik || pc.pengaju_nama || "-");
+      }
+      
+      y += 10;
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.rect(20, y, 170, 20, 'F');
+      doc.setTextColor(15, 118, 110); // emerald-700
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("TOTAL DANA", 30, y + 13);
+      doc.text(formatRupiah(Number(pc.jumlah)), 100, y + 13);
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+
+      y += 35;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text("INFORMASI PIHAK TERKAIT", 20, y);
+      doc.line(20, y+2, 190, y+2);
+      y += 12;
+      doc.setFontSize(10);
+      row("Nama Pengaju", pc.pengaju_nama || "-");
+      row("Petugas Administrasi", pc.diproses_nama || "Sistem");
+
+      // Signatures
+      y = 220;
+      doc.setFont("helvetica", "bold");
+      doc.text("Penerima,", 150, y, { align: "center" });
+      doc.setFont("helvetica", "normal");
+      doc.text("(......................................)", 150, y + 30, { align: "center" });
+      doc.text(pc.nama_pemilik || pc.pengaju_nama || "Nama Terang", 150, y + 35, { align: "center" });
+
+      // Footer
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text("Dokumen ini dihasilkan secara digital oleh E-Budgeting Pesantren.", 20, 285);
+      doc.text("ID Transaksi: " + pc.id, 20, 289);
+      doc.text("Waktu Cetak: " + new Date().toLocaleString("id-ID"), 190, 289, { align: "right" });
+
+      doc.save(`Bukti_Pencairan_${pc.kode}.pdf`);
+      toast.success("Bukti Pencairan berhasil diunduh");
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal membuat PDF Bukti Pencairan");
     }
-    
-    y += 10;
-    doc.setFillColor(248, 250, 252); // slate-50
-    doc.rect(20, y, 170, 20, 'F');
-    doc.setTextColor(15, 118, 110); // emerald-700
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text("TOTAL DANA", 30, y + 13);
-    doc.text(formatRupiah(Number(pc.jumlah)), 100, y + 13);
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-
-    y += 35;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("INFORMASI PIHAK TERKAIT", 20, y);
-    doc.line(20, y+2, 190, y+2);
-    y += 12;
-    doc.setFontSize(10);
-    row("Nama Pengaju", pc.pengaju_nama || "-");
-    row("Petugas Administrasi", pc.diproses_nama || "Sistem");
-
-    // Signatures
-    y = 220;
-    doc.setFont("helvetica", "bold");
-    doc.text("Penerima,", 150, y, { align: "center" });
-    doc.setFont("helvetica", "normal");
-    doc.text("(......................................)", 150, y + 30, { align: "center" });
-    doc.text(pc.nama_pemilik || pc.pengaju_nama || "Nama Terang", 150, y + 35, { align: "center" });
-
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(148, 163, 184);
-    doc.text("Dokumen ini dihasilkan secara digital oleh E-Budgeting Pesantren.", 20, 285);
-    doc.text("ID Transaksi: " + pc.id, 20, 289);
-    doc.text("Waktu Cetak: " + new Date().toLocaleString("id-ID"), 190, 289, { align: "right" });
-
-    doc.save(`Bukti_Pencairan_${pc.kode}.pdf`);
   };
 
   if (isLoading) {

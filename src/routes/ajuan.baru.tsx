@@ -3,7 +3,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { formatRupiah } from "@/lib/utils";
-import { useCreateAjuan, useInstansiList, useSettings, useAjuanList } from "@/lib/queries";
+import { useCreateAjuan, useInstansiList, useSettings, useAjuanList, useApprovers } from "@/lib/queries";
 import { compressImage, uploadToCloudinary } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { ArrowLeft, Plus, Trash2, Upload, X, Send, Loader2, Clock, AlertTriangle } from "lucide-react";
@@ -24,6 +24,7 @@ function BuatAjuanPage() {
   const { data: instansiData = [] } = useInstansiList();
   const { data: settings } = useSettings();
   const { data: ajuanList = [] } = useAjuanList();
+  const { data: approvers = [], isLoading: isLoadingApprovers } = useApprovers();
   
   const pendingReport = useMemo(() => {
     return ajuanList.find(a => (a.status === 'dicairkan' || a.status === 'disetujui') && !a.has_laporan);
@@ -33,6 +34,11 @@ function BuatAjuanPage() {
   const [judul, setJudul] = useState("");
   const [rencana, setRencana] = useState("");
   const [pengajuNama, setPengajuNama] = useState(profile?.nama_lengkap || "");
+  const [targetApproverId, setTargetApproverId] = useState("");
+  const [metodePencairan, setMetodePencairan] = useState<'tunai' | 'transfer'>('tunai');
+  const [bank, setBank] = useState("");
+  const [nomorRekening, setNomorRekening] = useState("");
+  const [namaRekening, setNamaRekening] = useState("");
   const [items, setItems] = useState<Item[]>([{ id: "1", nama: "", qty: 1, satuan: "pcs", harga: 0 }]);
   const [submitted, setSubmitted] = useState(false);
 
@@ -75,6 +81,11 @@ function BuatAjuanPage() {
         instansi, 
         rencana_penggunaan: rencana,
         gambar_url: finalGambarUrl || undefined,
+        target_approver_id: targetApproverId || undefined,
+        metode_pencairan: metodePencairan,
+        bank: metodePencairan === 'transfer' ? bank : undefined,
+        nomor_rekening: metodePencairan === 'transfer' ? nomorRekening : undefined,
+        nama_rekening: metodePencairan === 'transfer' ? namaRekening : undefined,
         items: items.map(({ nama, qty, satuan, harga }) => ({ nama_item: nama, qty, satuan, harga })),
       });
       toast.success("Ajuan Berhasil Dikirim");
@@ -98,6 +109,7 @@ function BuatAjuanPage() {
   const submit = async () => {
     if (!pengajuNama.trim()) { toast.error("Masukkan nama pengaju"); return; }
     if (!instansi) { toast.error("Pilih instansi/bidang"); return; }
+    if (!targetApproverId) { toast.error("Pilih Approver / Pejabat yang Berwenang"); return; }
     if (!judul.trim() || !rencana.trim()) { toast.error("Lengkapi judul dan rencana penggunaan"); return; }
     if (judul.trim().length < 3) { toast.error("Judul minimal 3 karakter"); return; }
     if (rencana.trim().length < 10) { toast.error("Rencana penggunaan minimal 10 karakter"); return; }
@@ -216,6 +228,21 @@ function BuatAjuanPage() {
                   {instansiData.map(i => <option key={i.id} value={i.nama}>{i.nama}</option>)}
                 </select>
               </Field>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Field label="Pilih Approver (Pejabat Berwenang)">
+                <select 
+                  value={targetApproverId} 
+                  onChange={e => setTargetApproverId(e.target.value)} 
+                  disabled={isLoadingApprovers}
+                  className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10 appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236b7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22m6%208%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px_20px] bg-[right:10px_center] bg-no-repeat"
+                >
+                  <option value="" disabled>{isLoadingApprovers ? "Memuat list approver..." : "Pilih Approver"}</option>
+                  {approvers.map(a => <option key={a.id} value={a.id}>{a.nama_lengkap} {a.jabatan ? `(${a.jabatan})` : ""}</option>)}
+                </select>
+              </Field>
+            </div>
               <Field label="Judul Penggunaan Dana" full>
                 <input 
                   value={judul} 
@@ -267,7 +294,66 @@ function BuatAjuanPage() {
                   )}
                 </div>
               </Field>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Field label="Metode Pencairan">
+                <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setMetodePencairan('tunai')}
+                    className={`flex-1 py-2 rounded-lg font-medium transition-all ${metodePencairan === 'tunai' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-white/50'}`}
+                  >
+                    Tunai (Cash)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMetodePencairan('transfer')}
+                    className={`flex-1 py-2 rounded-lg font-medium transition-all ${metodePencairan === 'transfer' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:bg-white/50'}`}
+                  >
+                    Transfer Bank
+                  </button>
+                </div>
+              </Field>
+
+              {metodePencairan === 'transfer' && (
+                <Field label="Nama Bank">
+                  <input
+                    type="text"
+                    value={bank}
+                    onChange={(e) => setBank(e.target.value)}
+                    placeholder="Contoh: BRI, BSI, Mandiri"
+                    className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+                    required
+                  />
+                </Field>
+              )}
             </div>
+
+            {metodePencairan === 'transfer' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Field label="Nomor Rekening">
+                  <input
+                    type="text"
+                    value={nomorRekening}
+                    onChange={(e) => setNomorRekening(e.target.value)}
+                    placeholder="Masukkan nomor rekening"
+                    className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+                    required
+                  />
+                </Field>
+                <Field label="Nama Pemilik Rekening">
+                  <input
+                    type="text"
+                    value={namaRekening}
+                    onChange={(e) => setNamaRekening(e.target.value)}
+                    placeholder="Nama sesuai di buku tabungan"
+                    className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+                    required
+                  />
+                </Field>
+              </div>
+            )}
+
           </section>
 
           <section>

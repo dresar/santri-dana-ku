@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 import { ArrowLeft, Printer, Download, Calendar, User, FileText, Loader2, ImageIcon, CheckCircle2, AlertCircle, Check, X } from "lucide-react";
 import { reportStatusBadgeClass, reportStatusLabel } from "@/lib/utils";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 import { toPng } from "html-to-image";
 
 export const Route = createFileRoute("/laporan/$id")({
@@ -322,7 +322,7 @@ function DetailLaporanPage() {
           <div className="grid grid-cols-2 gap-4">
             {laporan.foto_nota_urls.map((url, idx) => (
               <div key={idx} className="border border-gray-300 p-1">
-                <img src={url} alt="Nota" className="max-h-40 mx-auto" />
+                <img src={url} crossOrigin="anonymous" alt="Nota" className="max-h-40 mx-auto" />
               </div>
             ))}
           </div>

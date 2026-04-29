@@ -4,10 +4,10 @@ import { PageHeader, StatusBadge } from "@/components/PageHeader";
 import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
 import { useAjuanDetail, useAnalyzeAjuan, useApproval, useSettings, useDeleteAjuan } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
-import { ArrowLeft, Printer, Download, Calendar, User, Building2, FileText, Clock, Loader2, Bot, Sparkles, X, Check, Mail, Phone, Trash2 } from "lucide-react";
+import { ArrowLeft, Printer, Download, Calendar, User, Building2, FileText, Clock, Loader2, Bot, Sparkles, X, Check, Mail, Phone, Trash2, CreditCard, Banknote, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 import { toPng } from "html-to-image";
 
 export const Route = createFileRoute("/ajuan/$id")({
@@ -219,6 +219,19 @@ function DetailAjuanPage() {
                 <InfoItem icon={User} label="Nama Pengaju" value={ajuan.pengaju_nama ?? "—"} />
                 <InfoItem icon={Building2} label="Bidang / Instansi" value={ajuan.instansi} />
                 <InfoItem icon={Calendar} label="Tanggal Pengajuan" value={new Date(ajuan.created_at).toLocaleDateString("id-ID", { day: 'numeric', month: 'long', year: 'numeric' })} />
+                <InfoItem icon={Check} label="Approver Ditargetkan" value={ajuan.target_approver_nama ?? "Semua Approver"} />
+                <InfoItem 
+                  icon={ajuan.metode_pencairan === 'transfer' ? Landmark : Banknote} 
+                  label="Metode Pencairan" 
+                  value={ajuan.metode_pencairan === 'transfer' ? `Transfer (${ajuan.bank || 'Bank'})` : "Tunai (Cash)"} 
+                />
+                {ajuan.metode_pencairan === 'transfer' && (
+                  <InfoItem 
+                    icon={CreditCard} 
+                    label="Rekening Tujuan" 
+                    value={`${ajuan.nomor_rekening} a.n ${ajuan.nama_rekening}`} 
+                  />
+                )}
                 <InfoItem icon={FileText} label="Nomor Referensi" value={ajuan.kode} />
               </div>
 
@@ -512,7 +525,7 @@ function PrintLayout({ ajuan, items, settings }: { ajuan: any; items: any[]; set
     <div id="print-document" className="hidden print:block fixed inset-0" style={styles.container}>
       {/* Kop Surat */}
       <div style={styles.header}>
-        {settings.logo_url && <img src={settings.logo_url} style={styles.logo} alt="Logo" />}
+        {settings.logo_url && <img src={settings.logo_url} crossOrigin="anonymous" style={styles.logo} alt="Logo" />}
         <div style={styles.headerInfo}>
           <h1 style={styles.title}>{settings.nama}</h1>
           <p style={styles.address}>{settings.alamat}</p>
@@ -586,7 +599,7 @@ function PrintLayout({ ajuan, items, settings }: { ajuan: any; items: any[]; set
           <p style={{ marginBottom: '8px', textTransform: 'uppercase', fontWeight: 'bold' }}>Mengetahui/Menyetujui,</p>
           <div style={{ height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '8px' }}>
             {settings.show_ttd && settings.ttd_url && (
-              <img src={settings.ttd_url} style={styles.ttdImage} alt="TTD" />
+              <img src={settings.ttd_url} crossOrigin="anonymous" style={styles.ttdImage} alt="TTD" />
             )}
           </div>
           <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>Pimpinan Pesantren</p>

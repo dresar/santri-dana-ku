@@ -19,6 +19,12 @@ export interface Ajuan {
   pengaju_nama?: string;
   pengaju_jabatan?: string;
   pengaju_instansi?: string;
+  target_approver_id?: string;
+  target_approver_nama?: string;
+  metode_pencairan?: 'tunai' | 'transfer';
+  bank?: string;
+  nomor_rekening?: string;
+  nama_rekening?: string;
   created_at: string;
   updated_at: string;
 }
@@ -192,9 +198,31 @@ export function useAjuanDetail(id: string) {
 export function useCreateAjuan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { judul: string; instansi: string; rencana_penggunaan: string; dokumen_url?: string; gambar_url?: string; items: Omit<AjuanItem, "id" | "ajuan_id" | "subtotal">[] }) =>
+    mutationFn: (input: { 
+      judul: string; 
+      instansi: string; 
+      rencana_penggunaan: string; 
+      dokumen_url?: string; 
+      target_approver_id?: string;
+      metode_pencairan?: 'tunai' | 'transfer';
+      bank?: string;
+      nomor_rekening?: string;
+      nama_rekening?: string;
+      items: Omit<AjuanItem, "id" | "ajuan_id" | "subtotal">[] 
+    }) =>
       apiPost("/ajuan", input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ajuan"] }),
+  });
+}
+
+export function useApprovers() {
+  return useQuery<Pengguna[]>({
+    queryKey: ["pengguna", "approvers"],
+    queryFn: async () => {
+      const res = await apiFetch<PagedResponse<Pengguna> | Pengguna[]>("/ajuan/list-approvers");
+      if (Array.isArray(res)) return res;
+      return (res as PagedResponse<Pengguna>).data ?? [];
+    },
   });
 }
 
@@ -249,7 +277,16 @@ export function usePencairan() {
 export function useCreatePencairan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { ajuan_id: string; bank: string; no_rekening: string; nama_pemilik: string; jumlah: number }) =>
+    mutationFn: (input: { 
+      ajuan_id: string; 
+      bank?: string; 
+      no_rekening?: string; 
+      nama_pemilik?: string; 
+      jumlah: number;
+      metode?: string;
+      bukti_url?: string;
+      bukti_penyerahan_url?: string;
+    }) =>
       apiPost("/pencairan", input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pencairan"] });
