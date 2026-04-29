@@ -35,7 +35,7 @@ function DetailLaporanPage() {
     toast.info("Menyiapkan PDF Laporan...");
     try {
       element.classList.remove("hidden");
-      const canvas = await toPng(element, { quality: 1, pixelRatio: 2, backgroundColor: "#ffffff" });
+      const canvas = await toPng(element, { quality: 0.8, pixelRatio: 1.5, backgroundColor: "#ffffff" });
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -75,7 +75,8 @@ function DetailLaporanPage() {
         }
       }
 
-      pdf.save(`Laporan_Lengkap_${laporan?.ajuan_kode}.pdf`);
+      const safeKode = (laporan.ajuan_kode || "laporan").replace(/[^a-z0-9]/gi, '_');
+      pdf.save(`Laporan_Lengkap_${safeKode}.pdf`);
       element.classList.add("hidden");
       toast.success("PDF Laporan Lengkap berhasil diunduh");
     } catch (err) {

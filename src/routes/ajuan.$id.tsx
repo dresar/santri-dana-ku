@@ -129,22 +129,44 @@ function DetailAjuanPage() {
       element.style.position = "static";
       
       const dataUrl = await toPng(element, {
-        quality: 1.0,
-        pixelRatio: 2,
+        quality: 0.7,
+        pixelRatio: 1.2,
         backgroundColor: "#ffffff",
       });
       
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
       
       // Calculate height based on aspect ratio
       const img = new Image();
       img.src = dataUrl;
-      await new Promise(resolve => img.onload = resolve);
-      const pdfHeight = (img.height * pdfWidth) / img.width;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
       
-      pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Ajuan_${ajuan.kode}.pdf`);
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      // If content is taller than one page, we might need multiple pages, 
+      // but for "Ajuan" usually it fits in one or we just scale it.
+      // Scaling to width:
+      pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, Math.min(imgHeight, pdfHeight));
+      
+      const safeKode = (ajuan.kode || "dokumen").replace(/[^a-z0-9]/gi, '_');
+      const filename = `Ajuan_${safeKode}.pdf`;
+
+      const blob = pdf.output("blob");
+      const pdfBlob = new Blob([blob], { type: "application/pdf" });
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       
       // Re-hide the element
       element.classList.remove("block");
