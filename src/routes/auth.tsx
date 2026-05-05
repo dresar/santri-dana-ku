@@ -41,6 +41,8 @@ function AuthPage() {
     setBusy(false);
   };
 
+  const isDevMode = import.meta.env.VITE_APP_MODE !== "production";
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-soft via-background to-secondary p-4">
       <div className="w-full max-w-md">
@@ -85,7 +87,7 @@ function AuthPage() {
             </button>
           </p>
 
-          {mode === "login" && (
+          {mode === "login" && isDevMode && (
             <div className="mt-8 border-t border-border pt-6">
               <div className="mb-4 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Akses Cepat (Manual)</p>
