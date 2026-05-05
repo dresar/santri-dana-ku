@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { terbilang } from "@/lib/terbilang";
 import { useSettings, useVerifyReport, type Laporan } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
 import { ArrowLeft, Printer, Download, Calendar, User, FileText, Loader2, ImageIcon, CheckCircle2, AlertCircle, Check, X } from "lucide-react";
@@ -29,13 +30,16 @@ function DetailLaporanPage() {
   const verify = useVerifyReport();
 
   const handleDownloadPdf = async () => {
-    const element = document.getElementById("report-pdf-content");
+    const element = document.getElementById("nota-laporan-document");
     if (!element) return;
     
     toast.info("Menyiapkan PDF Laporan...");
     try {
-      element.classList.remove("hidden");
-      const canvas = await toPng(element, { quality: 0.8, pixelRatio: 1.5, backgroundColor: "#ffffff" });
+      const prev = element.style.cssText;
+      element.style.cssText = "display:block !important; position:fixed !important; left:-9999px !important; top:0 !important; visibility:visible !important;";
+      await new Promise(r => setTimeout(r, 300));
+
+      const canvas = await toPng(element, { quality: 1, pixelRatio: 2, backgroundColor: "#ffffff" });
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -76,13 +80,13 @@ function DetailLaporanPage() {
       }
 
       const safeKode = (laporan.ajuan_kode || "laporan").replace(/[^a-z0-9]/gi, '_');
-      pdf.save(`Laporan_Lengkap_${safeKode}.pdf`);
-      element.classList.add("hidden");
-      toast.success("PDF Laporan Lengkap berhasil diunduh");
+      pdf.save(`Nota_Laporan_${safeKode}.pdf`);
+      element.style.cssText = prev;
+      toast.success("PDF Laporan berhasil diunduh");
     } catch (err) {
       console.error(err);
       toast.error("Gagal mengunduh PDF");
-      element.classList.add("hidden");
+      element.style.cssText = "display:none";
     }
   };
 
@@ -267,79 +271,159 @@ function DetailLaporanPage() {
         </aside>
       </div>
 
-      {/* Hidden content for PDF generation */}
-      <div id="report-pdf-content" className="hidden p-10 bg-white text-black" style={{ width: "800px", fontFamily: "serif" }}>
-        <div className="text-center border-b-4 border-double border-black pb-6 mb-8">
-          <h1 className="text-2xl font-bold uppercase">{settings?.nama || "PESANTREN RAUDHATUSSALAM"}</h1>
-          <p className="italic text-sm">{settings?.alamat}</p>
-        </div>
-        
-        <h2 className="text-xl font-bold text-center underline uppercase mb-6">LAPORAN PENGGUNAAN DANA</h2>
-        
-        <div className="grid grid-cols-2 gap-4 mb-8 text-sm">
-          <p><strong>Kode Ajuan:</strong> {laporan.ajuan_kode}</p>
-          <p><strong>Tanggal Laporan:</strong> {new Date(laporan.created_at).toLocaleDateString("id-ID")}</p>
-          <p><strong>Pengaju:</strong> {laporan.pengaju_nama}</p>
-          <p><strong>Judul:</strong> {laporan.ajuan_judul}</p>
-        </div>
+      <NotaLaporanLayout 
+        ajuan={{ kode: laporan.ajuan_kode, judul: laporan.ajuan_judul, instansi: laporan.instansi, total: laporan.total_anggaran }} 
+        items={laporan.items?.map(i => ({ id: i.id, nama: i.nama_item, qty: i.qty, satuan: i.satuan, harga: i.harga })) || []} 
+        settings={settings || { nama: "PM. RAUDHATUSSALAM", alamat: "Mahato, Riau" }} 
+        totalDigunakan={Number(laporan.total_digunakan)}
+        sisaDana={Number(laporan.sisa_dana)}
+        profile={{ nama: laporan.pengaju_nama }}
+        createdAt={laporan.created_at}
+      />
+    </>
+  );
+}
 
-        <table className="w-full border-collapse border border-black text-sm mb-8">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="border border-black p-2 text-left">Item Pengeluaran</th>
-              <th className="border border-black p-2 text-center w-20">Qty</th>
-              <th className="border border-black p-2 text-right">Harga</th>
-              <th className="border border-black p-2 text-right">Subtotal</th>
+function NotaLaporanLayout({ ajuan, items, settings, totalDigunakan, sisaDana, profile, createdAt }: { ajuan: any; items: any[]; settings: any; totalDigunakan: number; sisaDana: number; profile: any; createdAt?: string }) {
+  const tanggal = new Date(createdAt || new Date()).toLocaleDateString("id-ID", {
+    day: "numeric", month: "long", year: "numeric",
+  });
+  const totalAnggaran = Number(ajuan.total);
+
+  const S: Record<string, React.CSSProperties> = {
+    wrap: { display: "none", fontFamily: "'Times New Roman', Times, serif", background: "#fff", color: "#000", padding: "32px 36px", width: "794px", boxSizing: "border-box", fontSize: "13px", lineHeight: "1.5" },
+    kopLine: { borderBottom: "3px double #000", paddingBottom: "8px", marginBottom: "12px", textAlign: "center" },
+    kopTitle: { fontSize: "16px", fontWeight: "bold", textTransform: "uppercase", margin: 0, letterSpacing: "0.5px" },
+    kopSub: { fontSize: "13px", margin: "2px 0" },
+    notaTitle: { textAlign: "center", fontSize: "16px", fontWeight: "bold", textTransform: "uppercase", textDecoration: "underline", margin: "10px 0 16px" },
+    fieldRow: { display: "grid", gridTemplateColumns: "180px 10px 1fr", marginBottom: "2px", fontSize: "13px" },
+    bodyText: { margin: "12px 0", fontSize: "13px", textAlign: "center" },
+    table: { width: "100%", borderCollapse: "collapse", marginBottom: "8px" },
+    th: { border: "1px solid #000", padding: "6px 8px", backgroundColor: "#f0f0f0", fontWeight: "bold", textAlign: "center" },
+    td: { border: "1px solid #000", padding: "6px 8px" },
+    terbilang: { border: "1px solid #000", padding: "8px 12px", marginTop: "4px", fontStyle: "italic", fontSize: "12px", textAlign: "center" },
+    nbSection: { marginTop: "16px", fontSize: "12px" },
+    saldoTable: { borderCollapse: "collapse", marginLeft: "120px", marginTop: "8px" },
+    sigSection: { display: "flex", justifyContent: "space-between", marginTop: "32px", fontSize: "11px", textAlign: "center" },
+    sigBox: { width: "19%", display: "flex", flexDirection: "column", alignItems: "center" },
+    sigLabel: { fontWeight: "bold", textTransform: "uppercase", marginBottom: "2px" },
+    sigRole: { marginBottom: "48px" },
+    sigName: { fontWeight: "bold", textDecoration: "underline" },
+    footer: { marginTop: "20px", fontSize: "11px", fontStyle: "italic", borderTop: "1px solid #ccc", paddingTop: "8px" },
+  };
+
+  return (
+    <div id="nota-laporan-document" style={S.wrap}>
+      {/* KOP */}
+      <div style={S.kopLine}>
+        <p style={S.kopTitle}>NOTA LAPORAN</p>
+        <p style={S.kopSub}>KE KANTOR ADMINISTRASI {(settings.nama || "PM. RAUDHATUSSALAM").toUpperCase()}</p>
+      </div>
+
+      {/* FIELD INFO */}
+      <div style={{ marginBottom: "12px" }}>
+        <div style={S.fieldRow}><span>NO. NOTA</span><span>:</span><span>{ajuan.kode || "—"}</span></div>
+        <div style={S.fieldRow}><span>DARI KAS</span><span>:</span><span>____________________________</span></div>
+        <div style={S.fieldRow}><span>DARI BAGIAN/KANTOR</span><span>:</span><span>{ajuan.instansi?.toUpperCase()}</span></div>
+      </div>
+
+      {/* BODY TEXT */}
+      <p style={S.bodyText}>
+        Dengan ini kami Bagian <strong>{ajuan.instansi}</strong> Melaporkan Nota-nota pengeluaran belanja untuk kebutuhan <strong>{ajuan.judul}</strong> dengan perincian sebagai berikut:
+      </p>
+
+      {/* RINCIAN ITEMS */}
+      <table style={S.table}>
+        <thead>
+          <tr>
+            <th style={{ ...S.th, width: "40px" }}>No</th>
+            <th style={S.th}>Nama Barang</th>
+            <th style={{ ...S.th, width: "100px" }}>Banyak</th>
+            <th style={{ ...S.th, width: "120px" }}>Harga @</th>
+            <th style={{ ...S.th, width: "150px" }}>Jumlah</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it, idx) => (
+            <tr key={it.id}>
+              <td style={{ ...S.td, textAlign: "center" }}>{idx + 1}</td>
+              <td style={S.td}>{it.nama}</td>
+              <td style={{ ...S.td, textAlign: "center" }}>{it.qty} {it.satuan}</td>
+              <td style={{ ...S.td, textAlign: "right" }}>{formatRupiah(it.harga)}</td>
+              <td style={{ ...S.td, textAlign: "right", fontWeight: "bold" }}>{formatRupiah(it.qty * it.harga)}</td>
             </tr>
-          </thead>
+          ))}
+          <tr style={{ backgroundColor: "#f9f9f9" }}>
+            <td colSpan={4} style={{ ...S.td, textAlign: "center", fontWeight: "bold" }}>Total</td>
+            <td style={{ ...S.td, textAlign: "right", fontWeight: "bold" }}>{formatRupiah(totalDigunakan)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* TERBILANG */}
+      <div style={S.terbilang}>{terbilang(totalDigunakan)} Rupiah</div>
+
+      {/* NB & SALDO */}
+      <div style={S.nbSection}>
+        <p>NB:</p>
+        <table style={S.saldoTable}>
           <tbody>
-            {laporan.items?.map(it => (
-              <tr key={it.id}>
-                <td className="border border-black p-2">{it.nama_item}</td>
-                <td className="border border-black p-2 text-center">{it.qty} {it.satuan}</td>
-                <td className="border border-black p-2 text-right">{formatRupiah(Number(it.harga))}</td>
-                <td className="border border-black p-2 text-right">{formatRupiah(Number(it.subtotal))}</td>
-              </tr>
-            ))}
+            <tr>
+              <td style={{ ...S.td, width: "30px", textAlign: "center" }}>1</td>
+              <td style={{ ...S.td, width: "120px" }}>Uang Masuk</td>
+              <td style={{ ...S.td, width: "150px", textAlign: "right", fontWeight: "bold" }}>{formatRupiah(totalAnggaran)}</td>
+            </tr>
+            <tr>
+              <td style={{ ...S.td, textAlign: "center" }}>2</td>
+              <td>Uang Keluar</td>
+              <td style={{ ...S.td, textAlign: "right", fontWeight: "bold" }}>{formatRupiah(totalDigunakan)}</td>
+            </tr>
+            <tr style={{ backgroundColor: "#f0f0f0" }}>
+              <td colSpan={2} style={{ ...S.td, textAlign: "center", fontWeight: "bold" }}>Saldo</td>
+              <td style={{ ...S.td, textAlign: "right", fontWeight: "bold" }}>{formatRupiah(sisaDana)}</td>
+            </tr>
           </tbody>
-          <tfoot className="font-bold">
-            <tr>
-              <td colSpan={3} className="border border-black p-2 text-right">TOTAL REALISASI</td>
-              <td className="border border-black p-2 text-right">{formatRupiah(Number(laporan.total_digunakan))}</td>
-            </tr>
-            <tr>
-              <td colSpan={3} className="border border-black p-2 text-right text-xs">TOTAL ANGGARAN AWAL</td>
-              <td className="border border-black p-2 text-right text-xs">{formatRupiah(Number(laporan.total_anggaran))}</td>
-            </tr>
-            <tr>
-              <td colSpan={3} className="border border-black p-2 text-right text-xs">SISA DANA</td>
-              <td className="border border-black p-2 text-right text-xs">{formatRupiah(Number(laporan.sisa_dana))}</td>
-            </tr>
-          </tfoot>
         </table>
+      </div>
 
-        <div className="mt-8">
-          <p className="font-bold mb-4">Lampiran Bukti Nota:</p>
-          <div className="grid grid-cols-2 gap-4">
-            {laporan.foto_nota_urls.map((url, idx) => (
-              <div key={idx} className="border border-gray-300 p-1">
-                <img src={url} crossOrigin="anonymous" alt="Nota" className="max-h-40 mx-auto" />
-              </div>
-            ))}
-          </div>
+      {/* TEMPAT & TANGGAL */}
+      <p style={{ textAlign: "right", marginTop: "20px", fontSize: "13px" }}>
+        Mahato, {tanggal}
+      </p>
+
+      {/* TANDA TANGAN - 5 KOLOM */}
+      <div style={S.sigSection}>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Mengetahui 1,</span>
+          <span style={S.sigRole}>Pengasuhan Santri</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
         </div>
-
-        <div className="mt-16 flex justify-between px-10">
-          <div className="text-center">
-            <p className="mb-20">Pelapor,</p>
-            <p className="font-bold underline">{laporan.pengaju_nama}</p>
-          </div>
-          <div className="text-center">
-            <p className="mb-20">Mengetahui, Pimpinan</p>
-            <p className="font-bold underline">............................</p>
-          </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Mengetahui 2,</span>
+          <span style={S.sigRole}>Ketua Yayasan</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
+        </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Menyetujui,</span>
+          <span style={S.sigRole}>Pimpinan Pondok</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
+        </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Bendahara,</span>
+          <span style={S.sigRole}>Staff ADM</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
+        </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Pelapor</span>
+          <span style={S.sigRole}>&nbsp;</span>
+          <span style={S.sigName}>{profile?.nama || "............................."}</span>
         </div>
       </div>
-    </>
+
+      {/* FOOTER */}
+      <p style={S.footer}>
+        *NB. Laporan pertanggung jawaban penggunaan uang tersebut diatas harap dilaporkan ke kantor Administrasi dan Pimpinan Pondok dengan segera
+      </p>
+    </div>
   );
 }

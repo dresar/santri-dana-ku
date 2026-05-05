@@ -5,9 +5,12 @@ import { PageHeader } from "@/components/PageHeader";
 import { formatRupiah, compressImage, uploadToCloudinary } from "@/lib/utils";
 import { useAjuanDetail, useCreateLaporan, useSettings } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
-import { ArrowLeft, Plus, Trash2, Upload, X, Send, Loader2, Image as ImageIcon, FileText } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, X, Send, Loader2, Image as ImageIcon, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { jsPDF } from "jspdf";
+import { toPng } from "html-to-image";
+import { terbilang } from "@/lib/terbilang";
 
 export const Route = createFileRoute("/laporan/baru")({
   validateSearch: z.object({
@@ -130,6 +133,42 @@ function BuatLaporanPage() {
       toast.error("Gagal mengirim laporan", { description: e.message });
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById("nota-laporan-document");
+    if (!element) return;
+    toast.info("Menyiapkan Nota Laporan PDF...", { duration: 2000 });
+    try {
+      const prev = element.style.cssText;
+      element.style.cssText = "display:block !important; position:fixed !important; left:-9999px !important; top:0 !important; visibility:visible !important;";
+      await new Promise(r => setTimeout(r, 300));
+      const dataUrl = await toPng(element, {
+        quality: 1,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+      });
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const imgH = (imgProps.height * pdfW) / imgProps.width;
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(dataUrl, "PNG", 0, -y, pdfW, imgH);
+        y += pdfH;
+      }
+      const safeKode = (ajuan?.kode || "laporan").replace(/[^a-z0-9]/gi, '_');
+      pdf.save(`Nota_Laporan_${safeKode}.pdf`);
+      element.style.cssText = prev;
+      toast.success("Nota Laporan berhasil diunduh!");
+    } catch (err: any) {
+      console.error("PDF Error:", err);
+      toast.error("Gagal membuat PDF", { description: err.message });
     }
   };
 
@@ -309,6 +348,16 @@ function BuatLaporanPage() {
                   </>
                 )}
               </button>
+
+              <button 
+                onClick={handleDownloadPdf}
+                type="button"
+                className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border-2 border-primary/20 bg-primary/5 text-sm font-bold text-primary transition-all hover:bg-primary/10"
+              >
+                <Download className="h-4 w-4" />
+                Unduh Nota Laporan (Draf)
+              </button>
+
               <p className="text-center text-[11px] text-muted-foreground mt-4 italic">
                 Laporan ini akan ditinjau oleh Admin Keuangan.
               </p>
@@ -316,6 +365,15 @@ function BuatLaporanPage() {
           </div>
         </aside>
       </div>
+
+      <NotaLaporanLayout 
+        ajuan={ajuan} 
+        items={items} 
+        settings={settings || { nama: "PM. RAUDHATUSSALAM", alamat: "Mahato, Riau" }} 
+        totalDigunakan={totalDigunakan}
+        sisaDana={sisaDana}
+        profile={profile}
+      />
     </>
   );
 }

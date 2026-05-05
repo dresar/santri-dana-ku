@@ -9,6 +9,9 @@ import { useAuth } from "@/lib/auth-context";
 import { ArrowLeft, Plus, Trash2, Upload, X, Send, Loader2, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useMemo } from "react";
+import { jsPDF } from "jspdf";
+import { toPng } from "html-to-image";
+import { terbilang } from "@/lib/terbilang";
 
 export const Route = createFileRoute("/ajuan/baru")({
   head: () => ({ meta: [{ title: "Buat Ajuan Baru — E-Budgeting Pesantren" }] }),
@@ -172,6 +175,47 @@ function BuatAjuanPage() {
       </div>
     );
   }
+
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById("nota-document-temp");
+    if (!element) return;
+    toast.info("Menyiapkan Nota Anggaran PDF...", { duration: 2000 });
+    try {
+      // Temporarily show the element to capture it
+      const prevStyle = element.style.cssText;
+      element.style.cssText = "display:block !important; position:fixed !important; left:-9999px !important; top:0 !important; visibility:visible !important;";
+      
+      await new Promise(r => setTimeout(r, 500));
+      const dataUrl = await toPng(element, {
+        quality: 1,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+      });
+
+      const pdf = new jsPDF("p", "mm", "a5");
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const imgH = (imgProps.height * pdfW) / imgProps.width;
+      
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(dataUrl, "PNG", 0, -y, pdfW, imgH);
+        y += pdfH;
+      }
+      
+      const filename = `Nota_Draft_${judul.replace(/[^a-z0-9]/gi, '_') || 'Tanpa_Judul'}.pdf`;
+      pdf.save(filename);
+      element.style.cssText = prevStyle;
+      toast.success("Nota Anggaran berhasil diunduh!");
+    } catch (err: any) {
+      console.error("PDF Error:", err);
+      toast.error("Gagal membuat PDF", { description: err.message });
+    }
+  };
 
   if (submitted) {
     return (
@@ -438,13 +482,159 @@ function BuatAjuanPage() {
                 </>
               )}
             </button>
+            
+            <button 
+              onClick={handleDownloadPdf}
+              type="button"
+              className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 border-primary/20 bg-primary/5 text-sm font-bold text-primary transition-all hover:bg-primary/10 active:scale-95"
+            >
+              <Download className="h-4 w-4" />
+              Unduh Nota (Draf)
+            </button>
+
             <p className="mt-4 text-center text-[11px] text-muted-foreground">
               Dengan menekan tombol, Anda menyatakan bahwa data anggaran yang diajukan adalah benar.
             </p>
           </div>
         </aside>
       </div>
+
+      {/* Hidden layout for PDF generation */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+        <NotaLayout 
+          ajuan={{
+            kode: "DRAF/TEMP",
+            judul,
+            instansi,
+            pengaju_nama: pengajuNama,
+            total: total
+          }} 
+          items={items.map(it => ({ ...it, nama_item: it.nama, subtotal: it.qty * it.harga }))} 
+          settings={settings || { nama: "Pesantren Modern Raudhatussalam Mahato", alamat: "Jl. Pesantren No. 01, Mahato, Riau" }} 
+        />
+      </div>
     </>
+  );
+}
+
+function NotaLayout({ ajuan, items, settings }: { ajuan: any; items: any[]; settings: any }) {
+  const tanggal = new Date().toLocaleDateString("id-ID", {
+    day: "numeric", month: "long", year: "numeric",
+  });
+  const totalRp = Number(ajuan.total);
+
+  const S: Record<string, React.CSSProperties> = {
+    wrap: { display: "block", fontFamily: "'Times New Roman', Times, serif", background: "#fff", color: "#000", padding: "32px 36px", width: "620px", boxSizing: "border-box", fontSize: "13px", lineHeight: "1.6" },
+    kopLine: { borderBottom: "3px double #000", paddingBottom: "8px", marginBottom: "12px", textAlign: "center" },
+    kopTitle: { fontSize: "15px", fontWeight: "bold", textTransform: "uppercase", margin: 0, letterSpacing: "0.5px" },
+    kopSub: { fontSize: "12px", margin: "2px 0" },
+    notaTitle: { textAlign: "center", fontSize: "15px", fontWeight: "bold", textTransform: "uppercase", textDecoration: "underline", margin: "10px 0 14px" },
+    fieldRow: { display: "grid", gridTemplateColumns: "160px 8px 1fr", marginBottom: "2px", fontSize: "13px" },
+    bodyText: { margin: "10px 0", fontSize: "13px" },
+    itemRow: { display: "flex", justifyContent: "space-between", padding: "1px 0" },
+    divider: { borderTop: "1px solid #000", margin: "4px 0" },
+    totalRow: { display: "flex", justifyContent: "space-between", fontWeight: "bold", padding: "2px 0" },
+    terbilang: { border: "1px solid #000", padding: "5px 10px", marginTop: "6px", fontStyle: "italic", fontSize: "12px" },
+    sigSection: { display: "flex", justifyContent: "space-between", marginTop: "28px", fontSize: "11px", textAlign: "center" },
+    sigBox: { width: "19%", display: "flex", flexDirection: "column", alignItems: "center" },
+    sigLabel: { fontWeight: "bold", textTransform: "uppercase", marginBottom: "2px", fontSize: "11px" },
+    sigRole: { marginBottom: "48px", fontSize: "11px" },
+    sigName: { fontWeight: "bold", textDecoration: "underline", fontSize: "11px" },
+    sigUnit: { fontSize: "10px" },
+    nb: { marginTop: "16px", fontSize: "11px", fontStyle: "italic", borderTop: "1px solid #ccc", paddingTop: "6px" },
+  };
+
+  return (
+    <div id="nota-document-temp" style={S.wrap}>
+      {/* KOP */}
+      <div style={S.kopLine}>
+        <p style={S.kopTitle}>NOTA PENGAJUAN ANGGARAN</p>
+        <p style={S.kopSub}>DARI KANTOR ADMINISTRASI {(settings.nama || "PM. RAUDHATUSSALAM").toUpperCase()}</p>
+        {settings.alamat && <p style={{ ...S.kopSub, fontSize: "11px" }}>{settings.alamat}</p>}
+      </div>
+
+      {/* JUDUL */}
+      <p style={S.notaTitle}>NOTA PENGAJUAN ANGGARAN</p>
+
+      {/* FIELD INFO */}
+      <div style={{ marginBottom: "10px" }}>
+        <div style={S.fieldRow}><span>NO. NOTA</span><span>:</span><span>{ajuan.kode}</span></div>
+        <div style={S.fieldRow}><span>DARI KAS</span><span>:</span><span>____________________________</span></div>
+        <div style={S.fieldRow}><span>UNTUK BAGIAN/KANTOR</span><span>:</span><span>{ajuan.instansi}</span></div>
+      </div>
+
+      {/* BODY TEXT */}
+      <p style={S.bodyText}>
+        Dengan ini kami mengajukan anggaran uang sebesar{" "}
+        <strong>{formatRupiah(totalRp)},-</strong>{" "}
+        untuk kebutuhan <strong>{ajuan.judul}</strong> dengan perincian sebagai berikut :
+      </p>
+
+      {/* RINCIAN ITEMS */}
+      <div style={{ padding: "0 24px", marginBottom: "4px" }}>
+        {items.map((it, idx) => (
+          <div key={idx} style={S.itemRow}>
+            <span>{it.nama_item}{it.satuan ? ` (${it.qty} ${it.satuan})` : it.qty > 1 ? ` x${it.qty}` : ""}</span>
+            <span>{formatRupiah(Number(it.subtotal))},-</span>
+          </div>
+        ))}
+        <div style={S.divider} />
+        <div style={S.totalRow}>
+          <span>TOTAL</span>
+          <span>{formatRupiah(totalRp)},-</span>
+        </div>
+      </div>
+
+      {/* TERBILANG */}
+      <div style={S.terbilang}>( {terbilang(totalRp)} )</div>
+
+      {/* TEMPAT & TANGGAL */}
+      <p style={{ ...S.bodyText, marginTop: "16px" }}>
+        {settings.alamat?.split(",")[0]?.trim() || "Mahato"}, {tanggal}
+      </p>
+
+      {/* TANDA TANGAN - 5 KOLOM */}
+      <div style={S.sigSection}>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Mengetahui 1,</span>
+          <span style={S.sigRole}>Pengasuhan Santri</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
+          <span style={S.sigUnit}>&nbsp;</span>
+        </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Mengetahui 2,</span>
+          <span style={S.sigRole}>Ketua Yayasan</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
+          <span style={S.sigUnit}>&nbsp;</span>
+        </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Menyetujui,</span>
+          <span style={S.sigRole}>Pimpinan Pondok</span>
+          {settings.show_ttd && settings.ttd_url
+            ? <img src={settings.ttd_url} crossOrigin="anonymous" style={{ height: "40px", objectFit: "contain" }} alt="TTD" />
+            : <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
+          }
+          <span style={S.sigUnit}>&nbsp;</span>
+        </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Bendahara,</span>
+          <span style={S.sigRole}>Staff ADM</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
+          <span style={S.sigUnit}>&nbsp;</span>
+        </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Pelapor</span>
+          <span style={{ ...S.sigRole, marginBottom: "36px" }}>Yang Mengajukan,</span>
+          <span style={S.sigName}>{ajuan.pengaju_nama}</span>
+          <span style={S.sigUnit}>{ajuan.pengaju_jabatan || ajuan.instansi}</span>
+        </div>
+      </div>
+
+      {/* NB */}
+      <p style={S.nb}>
+        *NB. Laporan pertanggung jawaban penggunaan uang tersebut di atas harap dilaporkan ke kantor Administrasi dan Pimpinan Pondok dengan segera.
+      </p>
+    </div>
   );
 }
 
