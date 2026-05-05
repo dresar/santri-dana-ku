@@ -385,4 +385,41 @@ ajuan.delete('/:id', authMiddleware, rbac('admin', 'pengaju'), async (c) => {
   return ok(c, null, 'Ajuan berhasil dihapus');
 });
 
+ajuan.post('/:id/duplicate', authMiddleware, rbac('pengaju', 'admin'), async (c) => {
+  const { id } = c.req.param();
+  const userId = c.get('userId');
+
+  try {
+    const existingRows = await sql`SELECT * FROM ajuan_anggaran WHERE id = ${id} LIMIT 1`;
+    if (!existingRows[0]) return fail(c, 'Data tidak ditemukan', 404);
+    const ex = existingRows[0] as any;
+
+    const items = await sql`SELECT * FROM ajuan_items WHERE ajuan_id = ${id}`;
+    
+    const kode = await generateKode();
+    const [newAjuan] = await sql`
+      INSERT INTO ajuan_anggaran (
+        kode, judul, pengaju_id, instansi, rencana_penggunaan, total, status, 
+        target_approver_id, metode_pencairan, bank, nomor_rekening, nama_rekening
+      )
+      VALUES (
+        ${kode}, ${ex.judul + ' (Copy)'}, ${userId}, ${ex.instansi}, ${ex.rencana_penggunaan}, ${ex.total}, 'draft',
+        ${ex.target_approver_id}, ${ex.metode_pencairan}, ${ex.bank}, ${ex.nomor_rekening}, ${ex.nama_rekening}
+      )
+      RETURNING id
+    ` as any;
+
+    for (const it of items) {
+      await sql`
+        INSERT INTO ajuan_items (ajuan_id, nama_item, qty, satuan, harga, subtotal)
+        VALUES (${newAjuan.id}, ${it.nama_item}, ${it.qty}, ${it.satuan}, ${it.harga}, ${it.subtotal})
+      `;
+    }
+
+    return ok(c, { id: newAjuan.id }, 'Ajuan berhasil diduplikasi ke Draft');
+  } catch (err: any) {
+    return fail(c, err.message, 500);
+  }
+});
+
 export default ajuan;

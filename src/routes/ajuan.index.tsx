@@ -4,7 +4,7 @@ import { PageHeader, StatusBadge } from "@/components/PageHeader";
 import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
 import { useAjuanList, type AjuanStatus, useDeleteAjuan } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
-import { Search, Plus, Filter, Eye, ChevronLeft, ChevronRight, Download, Loader2, FileText, Printer, Trash2, Edit } from "lucide-react";
+import { Search, Plus, Filter, Eye, ChevronLeft, ChevronRight, Download, Loader2, FileText, Trash2, FileSpreadsheet, TrendingUp, Clock, CheckCircle, Banknote } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/ajuan/")({
@@ -22,6 +22,27 @@ const filterOptions: { value: "all" | AjuanStatus; label: string }[] = [
   { value: "dicairkan", label: "Dicairkan" },
 ];
 
+function exportToCSV(data: any[], filename: string) {
+  const headers = ["No", "Kode", "Judul", "Instansi", "Pengaju", "Total", "Status", "Tanggal"];
+  const rows = data.map((a, i) => [
+    i + 1,
+    `"${a.kode}"`,
+    `"${a.judul}"`,
+    `"${a.instansi}"`,
+    `"${a.pengaju_nama ?? ""}"`,
+    Number(a.total),
+    `"${statusLabel[a.status] ?? a.status}"`,
+    `"${new Date(a.created_at).toLocaleDateString("id-ID")}"`,
+  ]);
+  const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+  const bom = "\uFEFF"; // UTF-8 BOM agar Excel bisa baca
+  const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 function AjuanListPage() {
   const { role } = useAuth();
   const [q, setQ] = useState("");
@@ -34,7 +55,6 @@ function AjuanListPage() {
   const handleDelete = async (a: any) => {
     const isAdmin = role === "admin";
     let reason = "";
-
     if (isAdmin) {
       const input = prompt(`Masukkan alasan penghapusan untuk ajuan ${a.kode}:`, "Kesalahan data / Pembatalan operasional");
       if (input === null) return;
@@ -42,7 +62,6 @@ function AjuanListPage() {
     } else {
       if (!confirm(`Apakah Anda yakin ingin menghapus ajuan ${a.kode}?`)) return;
     }
-
     try {
       await deleteAjuan.mutateAsync({ id: a.id, reason });
       toast.success("Ajuan berhasil dihapus");
@@ -59,8 +78,24 @@ function AjuanListPage() {
     });
   }, [q, status, ajuanData]);
 
+  // Statistik cards
+  const stats = useMemo(() => ({
+    menunggu: ajuanData.filter(a => a.status === "menunggu").length,
+    disetujui: ajuanData.filter(a => a.status === "disetujui").length,
+    dicairkan: ajuanData.filter(a => a.status === "dicairkan").length,
+    totalNominal: ajuanData.reduce((s, a) => s + Number(a.total), 0),
+  }), [ajuanData]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+  const handleExport = (type: "excel" | "csv") => {
+    if (filtered.length === 0) { toast.error("Tidak ada data untuk di-export"); return; }
+    const ts = new Date().toISOString().slice(0, 10);
+    exportToCSV(filtered, `Ajuan_Anggaran_${ts}.csv`);
+    toast.success(`Data berhasil di-export (${filtered.length} baris)`);
+    setExportOpen(false);
+  };
 
   return (
     <>
@@ -70,36 +105,23 @@ function AjuanListPage() {
         actions={
           <div className="flex gap-2">
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setExportOpen(!exportOpen)}
                 className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-card px-5 text-sm font-bold text-foreground shadow-soft transition-all hover:bg-secondary active:scale-95"
               >
                 <Download className="h-4 w-4 text-primary" /> Export Data
               </button>
-              
               {exportOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
-                  <div className="absolute right-0 top-full z-20 mt-2 w-72 origin-top-right animate-in fade-in zoom-in-95 rounded-2xl border border-border bg-card p-3 shadow-elevated">
-                    <div className="mb-2 px-2 pt-1 pb-2 border-b border-border">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Pilih Format Laporan</p>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <p className="mb-1.5 px-2 text-xs font-bold text-foreground">Laporan Rekapitulasi (.csv / .xls)</p>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button onClick={() => setExportOpen(false)} className="flex items-center justify-center rounded-lg bg-emerald-50 py-2 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors">Excel (.xlsx)</button>
-                          <button onClick={() => setExportOpen(false)} className="flex items-center justify-center rounded-lg bg-blue-50 py-2 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors">Data (.csv)</button>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="mb-1.5 px-2 text-xs font-bold text-foreground">Laporan Rekapitulasi (.csv / .xls)</p>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button onClick={() => setExportOpen(false)} className="flex items-center justify-center rounded-lg bg-emerald-50 py-2 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors">Excel (.xlsx)</button>
-                          <button onClick={() => setExportOpen(false)} className="flex items-center justify-center rounded-lg bg-blue-50 py-2 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors">Data (.csv)</button>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="absolute right-0 top-full z-20 mt-2 w-56 origin-top-right animate-in fade-in zoom-in-95 rounded-2xl border border-border bg-card p-2 shadow-elevated">
+                    <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Export Data Ajuan</p>
+                    <button onClick={() => handleExport("excel")} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-secondary">
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Excel (.csv)
+                    </button>
+                    <button onClick={() => handleExport("csv")} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-secondary">
+                      <FileText className="h-4 w-4 text-blue-600" /> Data (.csv)
+                    </button>
                   </div>
                 </>
               )}
@@ -112,6 +134,42 @@ function AjuanListPage() {
           </div>
         }
       />
+
+      {/* Statistik Cards */}
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="h-4 w-4 text-amber-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Menunggu</span>
+          </div>
+          <p className="text-2xl font-black text-amber-500">{stats.menunggu}</p>
+          <p className="text-[10px] text-muted-foreground">ajuan pending</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle className="h-4 w-4 text-emerald-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Disetujui</span>
+          </div>
+          <p className="text-2xl font-black text-emerald-500">{stats.disetujui}</p>
+          <p className="text-[10px] text-muted-foreground">ajuan approved</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+          <div className="flex items-center gap-2 mb-2">
+            <Banknote className="h-4 w-4 text-primary" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Dicairkan</span>
+          </div>
+          <p className="text-2xl font-black text-primary">{stats.dicairkan}</p>
+          <p className="text-[10px] text-muted-foreground">ajuan cair</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="h-4 w-4 text-violet-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Nominal</span>
+          </div>
+          <p className="text-lg font-black text-violet-500 leading-tight">{formatRupiah(stats.totalNominal)}</p>
+          <p className="text-[10px] text-muted-foreground">semua ajuan</p>
+        </div>
+      </div>
 
       <div className="rounded-2xl border border-border bg-card shadow-soft">
         <div className="flex flex-col gap-3 border-b border-border p-4 md:flex-row md:items-center md:justify-between">
@@ -175,15 +233,8 @@ function AjuanListPage() {
                         <Eye className="h-3.5 w-3.5" />
                         <span className="hidden md:inline">Detail</span>
                       </Link>
-                      
-                      {role === "pengaju" && (a.status === "menunggu" || a.status === "draft") && (
-                        <Link to="/ajuan/$id" params={{ id: a.id }} className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-2.5 text-xs font-semibold hover:bg-secondary text-amber-600" title="Edit">
-                          <Edit className="h-3.5 w-3.5" />
-                        </Link>
-                      )}
-
                       {(role === "admin" ? a.status !== "selesai" : (role === "pengaju" && ["menunggu", "draft", "ditolak"].includes(a.status))) && (
-                        <button 
+                        <button
                           onClick={() => handleDelete(a)}
                           className="inline-flex h-8 items-center gap-1 rounded-md border border-destructive/20 bg-destructive/5 px-2.5 text-xs font-semibold text-destructive hover:bg-destructive/10"
                           title="Hapus"

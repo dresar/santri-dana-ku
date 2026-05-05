@@ -35637,7 +35637,12 @@ var CreateAjuanSchema = external_exports.object({
   instansi: external_exports.string().min(2),
   rencana_penggunaan: external_exports.string().min(10),
   gambar_url: external_exports.string().optional(),
-  items: external_exports.array(AjuanItemSchema).min(1)
+  target_approver_id: external_exports.string().uuid().optional(),
+  items: external_exports.array(AjuanItemSchema).min(1),
+  metode_pencairan: external_exports.enum(["tunai", "transfer"]).optional().default("tunai"),
+  bank: external_exports.string().optional(),
+  nomor_rekening: external_exports.string().optional(),
+  nama_rekening: external_exports.string().optional()
 });
 var UpdateAjuanStatusSchema = external_exports.object({
   status: external_exports.enum(["disetujui", "ditolak", "dicairkan", "menunggu", "selesai"]),
@@ -35842,13 +35847,28 @@ async function generateKode() {
   }
   return finalKode;
 }
+ajuan.get("/list-approvers", authMiddleware, async (c) => {
+  try {
+    const users = await db_default`
+      SELECT p.id, p.nama_lengkap, p.jabatan, p.instansi, p.foto_url
+      FROM profiles p
+      JOIN user_roles ur ON ur.user_id = p.id
+      WHERE ur.role = 'approver'
+      ORDER BY p.nama_lengkap ASC
+    `;
+    return ok(c, users);
+  } catch (err) {
+    return fail(c, err.message, 500);
+  }
+});
 ajuan.get("/migrate", async (c) => {
   try {
-    await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;`;
-    await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS deletion_reason TEXT;`;
-    await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS dokumen_url TEXT;`;
-    await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS gambar_url TEXT;`;
     await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();`;
+    await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS target_approver_id UUID REFERENCES profiles(id);`;
+    await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS metode_pencairan TEXT DEFAULT 'tunai';`;
+    await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS bank TEXT;`;
+    await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS nomor_rekening TEXT;`;
+    await db_default`ALTER TABLE ajuan_anggaran ADD COLUMN IF NOT EXISTS nama_rekening TEXT;`;
     await db_default`
       CREATE TABLE IF NOT EXISTS laporan_penggunaan (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -35939,6 +35959,27 @@ ajuan.get("/", authMiddleware, async (c) => {
         AND (${s}::text IS NULL OR a.status = ${s})
         AND (${q}::text IS NULL OR a.judul ILIKE ${q} OR a.kode ILIKE ${q})
     `;
+  } else if (role === "approver") {
+    rows = await db_default`
+      SELECT a.*, p.nama_lengkap AS pengaju_nama,
+        EXISTS(SELECT 1 FROM laporan_penggunaan l WHERE l.ajuan_id = a.id) as has_laporan
+      FROM ajuan_anggaran a 
+      LEFT JOIN profiles p ON p.id = a.pengaju_id 
+      WHERE a.deleted_at IS NULL
+        AND (a.target_approver_id IS NULL OR a.target_approver_id = ${userId2})
+        AND (${s}::text IS NULL OR a.status = ${s})
+        AND (${q}::text IS NULL OR a.judul ILIKE ${q} OR a.kode ILIKE ${q})
+      ORDER BY a.created_at DESC 
+      LIMIT ${limitNum} OFFSET ${offset}
+    `;
+    countRows = await db_default`
+      SELECT COUNT(*) as total 
+      FROM ajuan_anggaran a 
+      WHERE a.deleted_at IS NULL
+        AND (a.target_approver_id IS NULL OR a.target_approver_id = ${userId2})
+        AND (${s}::text IS NULL OR a.status = ${s})
+        AND (${q}::text IS NULL OR a.judul ILIKE ${q} OR a.kode ILIKE ${q})
+    `;
   } else {
     rows = await db_default`
       SELECT a.*, p.nama_lengkap AS pengaju_nama,
@@ -35983,12 +36024,12 @@ ajuan.post("/", authMiddleware, rbac("pengaju", "admin"), async (c) => {
     if (Number(pendingReports[0]?.total ?? 0) > 0) {
       return fail(c, "Harap selesaikan laporan penggunaan anggaran sebelumnya sebelum membuat pengajuan baru.", 403);
     }
-    const { judul, instansi: instansi2, rencana_penggunaan, items, gambar_url } = parsed.data;
+    const { judul, instansi: instansi2, rencana_penggunaan, items, gambar_url, target_approver_id, metode_pencairan, bank, nomor_rekening, nama_rekening } = parsed.data;
     const total = items.reduce((sum, i) => sum + i.qty * i.harga, 0);
     const kode2 = await generateKode();
     const ajuanRows = await db_default`
-      INSERT INTO ajuan_anggaran (kode, judul, pengaju_id, instansi, rencana_penggunaan, total, status, gambar_url)
-      VALUES (${kode2}, ${judul}, ${userId2}, ${instansi2}, ${rencana_penggunaan}, ${total}, 'menunggu', ${gambar_url ?? null})
+      INSERT INTO ajuan_anggaran (kode, judul, pengaju_id, instansi, rencana_penggunaan, total, status, gambar_url, target_approver_id, metode_pencairan, bank, nomor_rekening, nama_rekening)
+      VALUES (${kode2}, ${judul}, ${userId2}, ${instansi2}, ${rencana_penggunaan}, ${total}, 'menunggu', ${gambar_url ?? null}, ${target_approver_id ?? null}, ${metode_pencairan ?? "tunai"}, ${bank ?? null}, ${nomor_rekening ?? null}, ${nama_rekening ?? null})
       RETURNING *
     `;
     const newAjuan = ajuanRows[0];
@@ -35999,12 +36040,19 @@ ajuan.post("/", authMiddleware, rbac("pengaju", "admin"), async (c) => {
         VALUES (${newAjuan.id}, ${item.nama_item}, ${item.qty}, ${item.satuan ?? null}, ${item.harga}, ${subtotal})
       `;
     }
-    const approvers = await db_default`SELECT user_id FROM user_roles WHERE role = 'approver'`;
-    for (const ap of approvers) {
+    if (target_approver_id) {
       await db_default`
         INSERT INTO notifikasi (user_id, judul, pesan, tipe, link)
-        VALUES (${ap.user_id}, 'Ajuan Baru Masuk', ${`Ajuan ${kode2} \u2014 ${judul} menunggu persetujuan Anda.`}, 'info', ${`/ajuan/${newAjuan.id}`})
+        VALUES (${target_approver_id}, 'Ajuan Baru Masuk', ${`Ajuan ${kode2} \u2014 ${judul} menunggu persetujuan Anda.`}, 'info', ${`/ajuan/${newAjuan.id}`})
       `;
+    } else {
+      const approvers = await db_default`SELECT user_id FROM user_roles WHERE role = 'approver'`;
+      for (const ap of approvers) {
+        await db_default`
+          INSERT INTO notifikasi (user_id, judul, pesan, tipe, link)
+          VALUES (${ap.user_id}, 'Ajuan Baru Masuk', ${`Ajuan ${kode2} \u2014 ${judul} menunggu persetujuan Anda.`}, 'info', ${`/ajuan/${newAjuan.id}`})
+        `;
+      }
     }
     return ok(c, newAjuan, "Ajuan berhasil dibuat", 201);
   } catch (err) {
@@ -36015,9 +36063,12 @@ ajuan.post("/", authMiddleware, rbac("pengaju", "admin"), async (c) => {
 ajuan.get("/:id", authMiddleware, async (c) => {
   const { id } = c.req.param();
   const ajuanRows = await db_default`
-    SELECT a.*, p.nama_lengkap AS pengaju_nama, p.jabatan AS pengaju_jabatan, p.instansi AS pengaju_instansi
+    SELECT a.*, 
+      p.nama_lengkap AS pengaju_nama, p.jabatan AS pengaju_jabatan, p.instansi AS pengaju_instansi,
+      ap.nama_lengkap AS target_approver_nama
     FROM ajuan_anggaran a
     LEFT JOIN profiles p ON p.id = a.pengaju_id
+    LEFT JOIN profiles ap ON ap.id = a.target_approver_id
     WHERE a.id = ${id}
     LIMIT 1
   `;
@@ -36095,6 +36146,37 @@ ajuan.delete("/:id", authMiddleware, rbac("admin", "pengaju"), async (c) => {
     await db_default`DELETE FROM ajuan_anggaran WHERE id = ${id}`;
   }
   return ok(c, null, "Ajuan berhasil dihapus");
+});
+ajuan.post("/:id/duplicate", authMiddleware, rbac("pengaju", "admin"), async (c) => {
+  const { id } = c.req.param();
+  const userId2 = c.get("userId");
+  try {
+    const existingRows = await db_default`SELECT * FROM ajuan_anggaran WHERE id = ${id} LIMIT 1`;
+    if (!existingRows[0]) return fail(c, "Data tidak ditemukan", 404);
+    const ex = existingRows[0];
+    const items = await db_default`SELECT * FROM ajuan_items WHERE ajuan_id = ${id}`;
+    const kode2 = await generateKode();
+    const [newAjuan] = await db_default`
+      INSERT INTO ajuan_anggaran (
+        kode, judul, pengaju_id, instansi, rencana_penggunaan, total, status, 
+        target_approver_id, metode_pencairan, bank, nomor_rekening, nama_rekening
+      )
+      VALUES (
+        ${kode2}, ${ex.judul + " (Copy)"}, ${userId2}, ${ex.instansi}, ${ex.rencana_penggunaan}, ${ex.total}, 'draft',
+        ${ex.target_approver_id}, ${ex.metode_pencairan}, ${ex.bank}, ${ex.nomor_rekening}, ${ex.nama_rekening}
+      )
+      RETURNING id
+    `;
+    for (const it of items) {
+      await db_default`
+        INSERT INTO ajuan_items (ajuan_id, nama_item, qty, satuan, harga, subtotal)
+        VALUES (${newAjuan.id}, ${it.nama_item}, ${it.qty}, ${it.satuan}, ${it.harga}, ${it.subtotal})
+      `;
+    }
+    return ok(c, { id: newAjuan.id }, "Ajuan berhasil diduplikasi ke Draft");
+  } catch (err) {
+    return fail(c, err.message, 500);
+  }
 });
 var ajuan_default = ajuan;
 
@@ -36275,6 +36357,7 @@ var notifikasi_default = notifikasi;
 // src/routes/pengguna.ts
 init_db();
 var pengguna = new Hono2();
+console.log("[backend] Router pengguna diinisialisasi");
 pengguna.post("/", authMiddleware, rbac("admin"), async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = CreateUserAdminSchema.safeParse(body);
@@ -36365,14 +36448,18 @@ pengguna.get("/", authMiddleware, rbac("admin"), async (c) => {
 });
 pengguna.get("/:id", authMiddleware, rbac("admin"), async (c) => {
   const { id } = c.req.param();
-  const rows = await db_default`
-    SELECT p.*, ur.role FROM profiles p
-    LEFT JOIN user_roles ur ON ur.user_id = p.id
-    WHERE p.id = ${id} LIMIT 1
-  `;
-  if (!rows[0]) return fail(c, "Pengguna tidak ditemukan", 404);
-  const ajuanCountRows = await db_default`SELECT COUNT(*) as total FROM ajuan_anggaran WHERE pengaju_id = ${id}`;
-  return ok(c, { ...rows[0], ajuan_count: Number(ajuanCountRows[0]?.total ?? 0) });
+  try {
+    const rows = await db_default`
+      SELECT p.*, ur.role FROM profiles p
+      LEFT JOIN user_roles ur ON ur.user_id = p.id
+      WHERE p.id = ${id} LIMIT 1
+    `;
+    if (!rows[0]) return fail(c, "Pengguna tidak ditemukan", 404);
+    const ajuanCountRows = await db_default`SELECT COUNT(*) as total FROM ajuan_anggaran WHERE pengaju_id = ${id}`;
+    return ok(c, { ...rows[0], ajuan_count: Number(ajuanCountRows[0]?.total ?? 0) });
+  } catch (err) {
+    return fail(c, err.message, 500);
+  }
 });
 pengguna.patch("/:id/role", authMiddleware, rbac("admin"), async (c) => {
   const { id } = c.req.param();

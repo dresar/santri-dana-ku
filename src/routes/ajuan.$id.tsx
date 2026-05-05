@@ -1,10 +1,11 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
 import { PageHeader, StatusBadge } from "@/components/PageHeader";
 import { formatRupiah, statusBadgeClass, statusLabel } from "@/lib/utils";
+import { terbilang } from "@/lib/terbilang";
 import { useAjuanDetail, useAnalyzeAjuan, useApproval, useSettings, useDeleteAjuan } from "@/lib/queries";
 import { useAuth } from "@/lib/auth-context";
-import { ArrowLeft, Printer, Download, Calendar, User, Building2, FileText, Clock, Loader2, Bot, Sparkles, X, Check, Mail, Phone, Trash2, CreditCard, Banknote, Landmark } from "lucide-react";
+import { ArrowLeft, Printer, Download, Calendar, User, Building2, FileText, Clock, Loader2, Bot, Sparkles, X, Check, Mail, Phone, Trash2, CreditCard, Banknote, Landmark, Copy } from "lucide-react";
 import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 import { jsPDF } from "jspdf";
@@ -117,70 +118,59 @@ function DetailAjuanPage() {
   };
 
   const handleDownloadPdf = async () => {
-    const element = document.getElementById("print-document");
+    const element = document.getElementById("nota-document");
     if (!element) return;
-    
-    toast.info("Sedang menyiapkan file PDF...", { duration: 2000 });
-    
+    toast.info("Menyiapkan Nota Anggaran PDF...", { duration: 2000 });
     try {
-      // Temporarily show the element for capture
-      element.classList.remove("hidden");
-      element.classList.add("block");
-      element.style.position = "static";
-      
+      const prev = element.style.cssText;
+      element.style.cssText = "display:block !important; position:static !important; left:auto !important; top:auto !important; visibility:visible !important;";
+      await new Promise(r => setTimeout(r, 300));
       const dataUrl = await toPng(element, {
-        quality: 0.7,
-        pixelRatio: 1.2,
+        quality: 1,
+        pixelRatio: 2,
         backgroundColor: "#ffffff",
+        width: element.scrollWidth,
+        height: element.scrollHeight,
       });
-      
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      // Calculate height based on aspect ratio
-      const img = new Image();
-      img.src = dataUrl;
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
-      
+      const pdf = new jsPDF("p", "mm", "a5");
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
       const imgProps = pdf.getImageProperties(dataUrl);
-      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      // If content is taller than one page, we might need multiple pages, 
-      // but for "Ajuan" usually it fits in one or we just scale it.
-      // Scaling to width:
-      pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, Math.min(imgHeight, pdfHeight));
-      
-      const safeKode = (ajuan.kode || "dokumen").replace(/[^a-z0-9]/gi, '_');
-      const filename = `Ajuan_${safeKode}.pdf`;
-
-      const blob = pdf.output("blob");
-      const pdfBlob = new Blob([blob], { type: "application/pdf" });
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      // Re-hide the element
-      element.classList.remove("block");
-      element.classList.add("hidden");
-      element.style.position = "fixed";
-      
-      toast.success("PDF berhasil diunduh");
+      const imgH = (imgProps.height * pdfW) / imgProps.width;
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(dataUrl, "PNG", 0, -y, pdfW, imgH);
+        y += pdfH;
+      }
+      const safeKode = (ajuan.kode || "nota").replace(/[^a-z0-9]/gi, '_');
+      pdf.save(`Nota_${safeKode}.pdf`);
+      element.style.cssText = prev;
+      toast.success("Nota Anggaran berhasil diunduh!");
     } catch (err: any) {
       console.error("PDF Error:", err);
-      toast.error("Gagal membuat PDF", { description: "Terjadi kesalahan teknis saat merender dokumen." });
-      // Clean up on error
-      element.classList.remove("block");
-      element.classList.add("hidden");
-      element.style.position = "fixed";
+      toast.error("Gagal membuat PDF", { description: err.message });
+    }
+  };
+
+  const handleDuplikat = async () => {
+    if (!confirm("Apakah Anda yakin ingin menduplikasi ajuan ini menjadi draf baru?")) return;
+    toast.loading("Menduplikasi ajuan...", { id: "dup" });
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ajuan/${id}/duplicate`, {
+        method: "POST",
+        headers: { 
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json"
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || "Gagal duplikat");
+      
+      toast.success("Berhasil diduplikasi ke Draft!", { id: "dup" });
+      router.navigate({ to: "/ajuan/$id", params: { id: data.data.id } });
+    } catch (err: any) {
+      toast.error(err.message, { id: "dup" });
     }
   };
 
@@ -195,7 +185,8 @@ function DetailAjuanPage() {
         actions={
           <>
             <button onClick={handlePrint} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold hover:bg-secondary print:hidden"><Printer className="h-4 w-4" /> Cetak</button>
-            <button onClick={handleDownloadPdf} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90 print:hidden"><Download className="h-4 w-4" /> Unduh PDF (Direct)</button>
+            <button onClick={handleDownloadPdf} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90 print:hidden"><Download className="h-4 w-4" /> Unduh Nota PDF</button>
+            <button onClick={handleDuplikat} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold hover:bg-secondary print:hidden"><Copy className="h-4 w-4" /> Duplikat</button>
             {ajuan.status === "dicairkan" && !ajuan.has_laporan && ajuan.pengaju_id === currentUserId && (
               <Link 
                 to="/laporan/baru" 
@@ -394,7 +385,7 @@ function DetailAjuanPage() {
         </aside>
       </div>
 
-      <PrintLayout ajuan={ajuan} items={data.items} settings={settings || DEFAULT_SETTINGS} />
+      <NotaLayout ajuan={ajuan} items={data.items} settings={settings || DEFAULT_SETTINGS} />
     </>
   );
 }
@@ -411,229 +402,119 @@ function InfoItem({ icon: Icon, label, value }: { icon: LucideIcon; label: strin
   );
 }
 
-function PrintLayout({ ajuan, items, settings }: { ajuan: any; items: any[]; settings: any }) {
-  const styles = {
-    container: {
-      backgroundColor: '#ffffff',
-      color: '#000000',
-      padding: '40px',
-      fontFamily: 'serif',
-      lineHeight: '1.5'
-    },
-    header: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '24px',
-      borderBottom: '4px double #000000',
-      paddingBottom: '24px',
-      marginBottom: '32px'
-    },
-    logo: {
-      height: '96px',
-      width: '96px',
-      objectFit: 'contain' as const
-    },
-    headerInfo: {
-      flex: 1,
-      textAlign: 'center' as const
-    },
-    title: {
-      fontSize: '24px',
-      fontWeight: 'bold',
-      textTransform: 'uppercase' as const,
-      margin: 0
-    },
-    address: {
-      fontSize: '14px',
-      fontStyle: 'italic',
-      margin: '4px 0'
-    },
-    contact: {
-      display: 'flex',
-      justifyContent: 'center',
-      gap: '16px',
-      fontSize: '12px',
-      marginTop: '4px'
-    },
-    docTitle: {
-      textAlign: 'center' as const,
-      marginBottom: '32px'
-    },
-    docTitleH2: {
-      fontSize: '20px',
-      fontWeight: 'bold',
-      textDecoration: 'underline',
-      textTransform: 'uppercase' as const,
-      margin: 0
-    },
-    infoGrid: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '12px',
-      fontSize: '14px',
-      marginBottom: '32px'
-    },
-    infoItem: {
-      display: 'grid',
-      gridTemplateColumns: '120px 1fr'
-    },
-    infoLabel: {
-      fontWeight: 'bold'
-    },
-    sectionTitle: {
-      fontWeight: 'bold',
-      fontSize: '14px',
-      marginBottom: '8px'
-    },
-    rencanaBox: {
-      fontSize: '14px',
-      padding: '16px',
-      border: '1px solid #000000',
-      borderRadius: '8px',
-      marginBottom: '32px'
-    },
-    table: {
-      width: '100%',
-      fontSize: '14px',
-      borderCollapse: 'collapse' as const,
-      border: '1px solid #000000',
-      marginBottom: '40px'
-    },
-    th: {
-      border: '1px solid #000000',
-      padding: '8px 12px',
-      textAlign: 'left' as const,
-      backgroundColor: '#f1f5f9'
-    },
-    td: {
-      border: '1px solid #000000',
-      padding: '8px 12px'
-    },
-    tfoot: {
-      fontWeight: 'bold',
-      backgroundColor: '#f8fafc'
-    },
-    signatureSection: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginTop: '48px',
-      fontSize: '14px'
-    },
-    signatureBox: {
-      textAlign: 'center' as const,
-      width: '256px'
-    },
-    ttdImage: {
-      height: '80px',
-      objectFit: 'contain' as const,
-      marginBottom: '8px'
-    },
-    footer: {
-      position: 'absolute' as const,
-      bottom: '40px',
-      left: '40px',
-      right: '40px',
-      display: 'flex',
-      justifyContent: 'space-between',
-      fontSize: '10px',
-      color: '#94a3b8',
-      borderTop: '1px solid #f1f5f9',
-      paddingTop: '16px'
-    }
+function NotaLayout({ ajuan, items, settings }: { ajuan: any; items: any[]; settings: any }) {
+  const tanggal = new Date(ajuan.created_at).toLocaleDateString("id-ID", {
+    day: "numeric", month: "long", year: "numeric",
+  });
+  const totalRp = Number(ajuan.total);
+
+  const S: Record<string, React.CSSProperties> = {
+    wrap: { display: "none", fontFamily: "'Times New Roman', Times, serif", background: "#fff", color: "#000", padding: "32px 36px", width: "620px", boxSizing: "border-box", fontSize: "13px", lineHeight: "1.6" },
+    kopLine: { borderBottom: "3px double #000", paddingBottom: "8px", marginBottom: "12px", textAlign: "center" },
+    kopTitle: { fontSize: "15px", fontWeight: "bold", textTransform: "uppercase", margin: 0, letterSpacing: "0.5px" },
+    kopSub: { fontSize: "12px", margin: "2px 0" },
+    notaTitle: { textAlign: "center", fontSize: "15px", fontWeight: "bold", textTransform: "uppercase", textDecoration: "underline", margin: "10px 0 14px" },
+    fieldRow: { display: "grid", gridTemplateColumns: "160px 8px 1fr", marginBottom: "2px", fontSize: "13px" },
+    bodyText: { margin: "10px 0", fontSize: "13px" },
+    itemRow: { display: "flex", justifyContent: "space-between", padding: "1px 0" },
+    divider: { borderTop: "1px solid #000", margin: "4px 0" },
+    totalRow: { display: "flex", justifyContent: "space-between", fontWeight: "bold", padding: "2px 0" },
+    terbilang: { border: "1px solid #000", padding: "5px 10px", marginTop: "6px", fontStyle: "italic", fontSize: "12px" },
+    sigSection: { display: "flex", justifyContent: "space-between", marginTop: "28px", fontSize: "12px", textAlign: "center" },
+    sigBox: { width: "22%", display: "flex", flexDirection: "column", alignItems: "center" },
+    sigLabel: { fontWeight: "bold", textTransform: "uppercase", marginBottom: "2px", fontSize: "12px" },
+    sigRole: { marginBottom: "52px", fontSize: "12px" },
+    sigName: { fontWeight: "bold", textDecoration: "underline", fontSize: "12px" },
+    sigUnit: { fontSize: "11px" },
+    nb: { marginTop: "16px", fontSize: "11px", fontStyle: "italic", borderTop: "1px solid #ccc", paddingTop: "6px" },
   };
 
   return (
-    <div id="print-document" className="hidden print:block fixed inset-0" style={styles.container}>
-      {/* Kop Surat */}
-      <div style={styles.header}>
-        {settings.logo_url && <img src={settings.logo_url} crossOrigin="anonymous" style={styles.logo} alt="Logo" />}
-        <div style={styles.headerInfo}>
-          <h1 style={styles.title}>{settings.nama}</h1>
-          <p style={styles.address}>{settings.alamat}</p>
-          <div style={styles.contact}>
-            <span>{settings.email}</span>
-            <span>{settings.kontak}</span>
+    <div id="nota-document" style={S.wrap}>
+      {/* KOP */}
+      <div style={S.kopLine}>
+        <p style={S.kopTitle}>NOTA PENGAJUAN ANGGARAN</p>
+        <p style={S.kopSub}>DARI KANTOR ADMINISTRASI {(settings.nama || "PM. RAUDHATUSSALAM").toUpperCase()}</p>
+        {settings.alamat && <p style={{ ...S.kopSub, fontSize: "11px" }}>{settings.alamat}</p>}
+      </div>
+
+      {/* JUDUL */}
+      <p style={S.notaTitle}>NOTA PENGAJUAN ANGGARAN</p>
+
+      {/* FIELD INFO */}
+      <div style={{ marginBottom: "10px" }}>
+        <div style={S.fieldRow}><span>NO. NOTA</span><span>:</span><span>{ajuan.kode}</span></div>
+        <div style={S.fieldRow}><span>DARI KAS</span><span>:</span><span>____________________________</span></div>
+        <div style={S.fieldRow}><span>UNTUK BAGIAN/KANTOR</span><span>:</span><span>{ajuan.instansi}</span></div>
+      </div>
+
+      {/* BODY TEXT */}
+      <p style={S.bodyText}>
+        Dengan ini kami mengajukan anggaran uang sebesar{" "}
+        <strong>{formatRupiah(totalRp)},-</strong>{" "}
+        untuk kebutuhan <strong>{ajuan.judul}</strong> dengan perincian sebagai berikut :
+      </p>
+
+      {/* RINCIAN ITEMS */}
+      <div style={{ padding: "0 24px", marginBottom: "4px" }}>
+        {items.map((it) => (
+          <div key={it.id} style={S.itemRow}>
+            <span>{it.nama_item}{it.satuan ? ` (${it.qty} ${it.satuan})` : it.qty > 1 ? ` x${it.qty}` : ""}</span>
+            <span>{formatRupiah(Number(it.subtotal))},-</span>
           </div>
+        ))}
+        <div style={S.divider} />
+        <div style={S.totalRow}>
+          <span>TOTAL</span>
+          <span>{formatRupiah(totalRp)},-</span>
         </div>
       </div>
 
-      {/* Judul Dokumen */}
-      <div style={styles.docTitle}>
-        <h2 style={styles.docTitleH2}>SURAT PENGAJUAN ANGGARAN</h2>
-        <p style={{ fontFamily: 'monospace', fontSize: '14px', marginTop: '4px' }}>Nomor: {ajuan.kode}</p>
-      </div>
+      {/* TERBILANG */}
+      <div style={S.terbilang}>( {terbilang(totalRp)} )</div>
 
-      {/* Informasi Utama */}
-      <div style={styles.infoGrid}>
-        <div style={styles.infoItem}><span style={styles.infoLabel}>Nama Pengaju</span><span>: {ajuan.pengaju_nama}</span></div>
-        <div style={styles.infoItem}><span style={styles.infoLabel}>Bidang/Unit</span><span>: {ajuan.instansi}</span></div>
-        <div style={styles.infoItem}><span style={styles.infoLabel}>Tanggal</span><span>: {new Date(ajuan.created_at).toLocaleDateString("id-ID", { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
-        <div style={styles.infoItem}><span style={styles.infoLabel}>Perihal</span><span>: {ajuan.judul}</span></div>
-      </div>
+      {/* TEMPAT & TANGGAL */}
+      <p style={{ ...S.bodyText, marginTop: "16px" }}>
+        {settings.alamat?.split(",")[0]?.trim() || "Mahato"}, {tanggal}
+      </p>
 
-      {/* Rencana Penggunaan */}
-      <div>
-        <h3 style={styles.sectionTitle}>Rencana Penggunaan Dana:</h3>
-        <p style={styles.rencanaBox}>{ajuan.rencana_penggunaan}</p>
-      </div>
-
-      {/* Tabel Rincian */}
-      <table style={styles.table}>
-        <thead>
-          <tr>
-            <th style={{ ...styles.th, width: '40px', textAlign: 'center' }}>#</th>
-            <th style={styles.th}>Deskripsi Kebutuhan</th>
-            <th style={{ ...styles.th, width: '64px', textAlign: 'center' }}>Qty</th>
-            <th style={{ ...styles.th, width: '80px' }}>Satuan</th>
-            <th style={{ ...styles.th, width: '128px', textAlign: 'right' }}>Harga Satuan</th>
-            <th style={{ ...styles.th, width: '128px', textAlign: 'right' }}>Subtotal</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it, idx) => (
-            <tr key={it.id}>
-              <td style={{ ...styles.td, textAlign: 'center' }}>{idx + 1}</td>
-              <td style={styles.td}>{it.nama_item}</td>
-              <td style={{ ...styles.td, textAlign: 'center' }}>{it.qty}</td>
-              <td style={styles.td}>{it.satuan}</td>
-              <td style={{ ...styles.td, textAlign: 'right' }}>{formatRupiah(Number(it.harga))}</td>
-              <td style={{ ...styles.td, textAlign: 'right' }}>{formatRupiah(Number(it.subtotal))}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr style={styles.tfoot}>
-            <td colSpan={5} style={{ ...styles.td, textAlign: 'right' }}>TOTAL ANGGARAN</td>
-            <td style={{ ...styles.td, textAlign: 'right' }}>{formatRupiah(Number(ajuan.total))}</td>
-          </tr>
-        </tfoot>
-      </table>
-
-      {/* Tanda Tangan */}
-      <div style={styles.signatureSection}>
-        <div style={styles.signatureBox}>
-          <p style={{ marginBottom: '64px', textTransform: 'uppercase', fontWeight: 'bold' }}>Pengaju,</p>
-          <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>{ajuan.pengaju_nama}</p>
-          <p style={{ fontSize: '12px' }}>{ajuan.instansi}</p>
+      {/* TANDA TANGAN - 4 KOLOM */}
+      <div style={S.sigSection}>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Mengetahui,</span>
+          <span style={S.sigRole}>Kepala Sekolah</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
+          <span style={S.sigUnit}>&nbsp;</span>
         </div>
-        <div style={styles.signatureBox}>
-          <p style={{ marginBottom: '8px', textTransform: 'uppercase', fontWeight: 'bold' }}>Mengetahui/Menyetujui,</p>
-          <div style={{ height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '8px' }}>
-            {settings.show_ttd && settings.ttd_url && (
-              <img src={settings.ttd_url} crossOrigin="anonymous" style={styles.ttdImage} alt="TTD" />
-            )}
-          </div>
-          <p style={{ fontWeight: 'bold', textDecoration: 'underline' }}>Pimpinan Pesantren</p>
-          <p style={{ fontSize: '12px' }}>SantriDanaKu System</p>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Menyetujui,</span>
+          <span style={S.sigRole}>Pimpinan Pondok</span>
+          {settings.show_ttd && settings.ttd_url
+            ? <img src={settings.ttd_url} crossOrigin="anonymous" style={{ height: "48px", objectFit: "contain" }} alt="TTD" />
+            : <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
+          }
+          <span style={S.sigUnit}>&nbsp;</span>
+        </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Bendahara,</span>
+          <span style={S.sigRole}>Staff ADM</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................)</span>
+          <span style={S.sigUnit}>&nbsp;</span>
+        </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Yang Mengajukan</span>
+          <span style={{ ...S.sigRole, marginBottom: "40px" }}>Anggaran,</span>
+          <span style={S.sigName}>{ajuan.pengaju_nama}</span>
+          <span style={S.sigUnit}>{ajuan.pengaju_jabatan || ajuan.instansi}</span>
         </div>
       </div>
 
-      {/* Footer Print */}
-      <div style={styles.footer}>
-        <p>Dicetak otomatis melalui Sistem E-Budgeting SantriDanaKu</p>
-        <p>{new Date().toLocaleString("id-ID")}</p>
-      </div>
+      {/* NB */}
+      <p style={S.nb}>
+        *NB. Laporan pertanggung jawaban penggunaan uang tersebut di atas harap dilaporkan ke kantor Administrasi dan Pimpinan Pondok dengan segera.
+      </p>
     </div>
   );
 }
+
+
