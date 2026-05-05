@@ -118,7 +118,9 @@ function DetailAjuanPage() {
   };
 
   const handleDownloadPdf = async () => {
-    const element = document.getElementById("nota-document");
+    const isAdministrasi = role === "administrasi";
+    const targetId = isAdministrasi ? "form-administrasi-document" : "nota-document";
+    const element = document.getElementById(targetId);
     if (!element) return;
     toast.info("Menyiapkan Nota Anggaran PDF...", { duration: 2000 });
     try {
@@ -132,7 +134,7 @@ function DetailAjuanPage() {
         width: element.scrollWidth,
         height: element.scrollHeight,
       });
-      const pdf = new jsPDF("p", "mm", "a5");
+      const pdf = new jsPDF("p", "mm", isAdministrasi ? "a4" : "a5");
       const pdfW = pdf.internal.pageSize.getWidth();
       const pdfH = pdf.internal.pageSize.getHeight();
       const imgProps = pdf.getImageProperties(dataUrl);
@@ -144,7 +146,8 @@ function DetailAjuanPage() {
         y += pdfH;
       }
       const safeKode = (ajuan.kode || "nota").replace(/[^a-z0-9]/gi, '_');
-      pdf.save(`Nota_${safeKode}.pdf`);
+      const filename = isAdministrasi ? `Form_Pencairan_${safeKode}.pdf` : `Nota_${safeKode}.pdf`;
+      pdf.save(filename);
       element.style.cssText = prev;
       toast.success("Nota Anggaran berhasil diunduh!");
     } catch (err: any) {
@@ -386,6 +389,7 @@ function DetailAjuanPage() {
       </div>
 
       <NotaLayout ajuan={ajuan} items={data.items} settings={settings || DEFAULT_SETTINGS} />
+      <FormAdministrasiLayout ajuan={ajuan} items={data.items} settings={settings || DEFAULT_SETTINGS} />
     </>
   );
 }
@@ -518,3 +522,115 @@ function NotaLayout({ ajuan, items, settings }: { ajuan: any; items: any[]; sett
 }
 
 
+function FormAdministrasiLayout({ ajuan, items, settings }: { ajuan: any; items: any[]; settings: any }) {
+  const tanggal = new Date(ajuan.created_at).toLocaleDateString("id-ID", {
+    day: "numeric", month: "long", year: "numeric",
+  });
+  const totalRp = Number(ajuan.total);
+
+  const S: Record<string, React.CSSProperties> = {
+    wrap: { display: "none", fontFamily: "'Times New Roman', Times, serif", background: "#fff", color: "#000", padding: "40px", width: "794px", boxSizing: "border-box", fontSize: "14px", lineHeight: "1.6" },
+    kopLine: { borderBottom: "3px double #000", paddingBottom: "12px", marginBottom: "24px", textAlign: "center" },
+    kopTitle: { fontSize: "18px", fontWeight: "bold", textTransform: "uppercase", margin: 0, letterSpacing: "1px" },
+    kopSub: { fontSize: "14px", margin: "4px 0" },
+    notaTitle: { textAlign: "center", fontSize: "16px", fontWeight: "bold", textTransform: "uppercase", textDecoration: "underline", margin: "10px 0 24px", letterSpacing: "1px" },
+    sectionTitle: { fontWeight: "bold", borderBottom: "1px solid #ccc", marginBottom: "8px", paddingBottom: "4px", fontSize: "14px", textTransform: "uppercase" },
+    fieldGrid: { display: "grid", gridTemplateColumns: "180px 10px 1fr", marginBottom: "4px", fontSize: "14px" },
+    table: { width: "100%", borderCollapse: "collapse", marginTop: "16px", marginBottom: "8px" },
+    th: { border: "1px solid #000", padding: "8px", backgroundColor: "#f3f4f6", fontWeight: "bold", textAlign: "left" },
+    td: { border: "1px solid #000", padding: "8px" },
+    terbilang: { border: "1px dashed #000", padding: "12px", marginTop: "16px", fontStyle: "italic", fontSize: "14px", backgroundColor: "#f9fafb" },
+    sigSection: { display: "flex", justifyContent: "space-between", marginTop: "40px", fontSize: "14px", textAlign: "center", padding: "0 40px" },
+    sigBox: { width: "35%", display: "flex", flexDirection: "column", alignItems: "center" },
+    sigLabel: { marginBottom: "60px" },
+    sigName: { fontWeight: "bold", textDecoration: "underline" },
+  };
+
+  return (
+    <div id="form-administrasi-document" style={S.wrap}>
+      {/* KOP */}
+      <div style={S.kopLine}>
+        <p style={S.kopTitle}>FORMULIR PENCAIRAN ANGGARAN</p>
+        <p style={S.kopSub}>BAGIAN ADMINISTRASI {(settings.nama || "PM. RAUDHATUSSALAM").toUpperCase()}</p>
+        {settings.alamat && <p style={{ ...S.kopSub, fontSize: "12px" }}>{settings.alamat}</p>}
+      </div>
+
+      <p style={S.notaTitle}>FORMULIR PENCAIRAN ANGGARAN</p>
+
+      {/* INFORMASI UMUM */}
+      <div style={{ marginBottom: "24px" }}>
+        <p style={S.sectionTitle}>1. INFORMASI PENGAJU</p>
+        <div style={S.fieldGrid}><span>No. Ajuan / Kode</span><span>:</span><span style={{ fontWeight: "bold" }}>{ajuan.kode}</span></div>
+        <div style={S.fieldGrid}><span>Nama Lengkap</span><span>:</span><span>{ajuan.pengaju_nama}</span></div>
+        <div style={S.fieldGrid}><span>Instansi / Unit</span><span>:</span><span>{ajuan.instansi}</span></div>
+        <div style={S.fieldGrid}><span>Tanggal Pengajuan</span><span>:</span><span>{tanggal}</span></div>
+        <div style={S.fieldGrid}><span>Status Ajuan</span><span>:</span><span style={{ textTransform: "uppercase", fontWeight: "bold" }}>{ajuan.status}</span></div>
+      </div>
+
+      {/* INFORMASI PENCAIRAN */}
+      <div style={{ marginBottom: "24px" }}>
+        <p style={S.sectionTitle}>2. METODE PENCAIRAN</p>
+        <div style={S.fieldGrid}><span>Metode</span><span>:</span><span style={{ textTransform: "uppercase", fontWeight: "bold" }}>{ajuan.metode_pencairan || "Tunai"}</span></div>
+        {ajuan.metode_pencairan === 'transfer' && (
+          <>
+            <div style={S.fieldGrid}><span>Bank Tujuan</span><span>:</span><span>{ajuan.bank}</span></div>
+            <div style={S.fieldGrid}><span>Nomor Rekening</span><span>:</span><span style={{ fontWeight: "bold" }}>{ajuan.nomor_rekening}</span></div>
+            <div style={S.fieldGrid}><span>Atas Nama</span><span>:</span><span>{ajuan.nama_rekening}</span></div>
+          </>
+        )}
+      </div>
+
+      {/* RINCIAN ITEM */}
+      <div style={{ marginBottom: "24px" }}>
+        <p style={S.sectionTitle}>3. RINCIAN KEBUTUHAN / ITEM</p>
+        <p style={{ margin: "4px 0", fontStyle: "italic" }}>Keperluan: {ajuan.judul}</p>
+        <table style={S.table}>
+          <thead>
+            <tr>
+              <th style={{ ...S.th, width: "5%" }}>No</th>
+              <th style={S.th}>Nama Item / Keperluan</th>
+              <th style={{ ...S.th, width: "15%", textAlign: "center" }}>Qty</th>
+              <th style={{ ...S.th, width: "20%", textAlign: "right" }}>Harga Satuan</th>
+              <th style={{ ...S.th, width: "25%", textAlign: "right" }}>Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => (
+              <tr key={it.id}>
+                <td style={{ ...S.td, textAlign: "center" }}>{i + 1}</td>
+                <td style={S.td}>{it.nama_item}</td>
+                <td style={{ ...S.td, textAlign: "center" }}>{it.qty} {it.satuan}</td>
+                <td style={{ ...S.td, textAlign: "right" }}>{formatRupiah(Number(it.harga))}</td>
+                <td style={{ ...S.td, textAlign: "right", fontWeight: "bold" }}>{formatRupiah(Number(it.subtotal))}</td>
+              </tr>
+            ))}
+            <tr>
+              <td colSpan={4} style={{ ...S.td, textAlign: "right", fontWeight: "bold" }}>TOTAL PENCAIRAN</td>
+              <td style={{ ...S.td, textAlign: "right", fontWeight: "bold", fontSize: "16px" }}>{formatRupiah(totalRp)}</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        {/* TERBILANG */}
+        <div style={S.terbilang}>
+          <strong>Terbilang:</strong> <em>{terbilang(totalRp)} rupiah</em>
+        </div>
+      </div>
+
+      {/* TANDA TANGAN */}
+      <div style={S.sigSection}>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Penerima Dana,</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................................)</span>
+          <span style={{ fontSize: "12px", marginTop: "4px" }}>{ajuan.pengaju_nama}</span>
+        </div>
+        <div style={S.sigBox}>
+          <span style={S.sigLabel}>Verifikator / Administrasi,</span>
+          <span style={{ ...S.sigName, opacity: 0.3 }}>(.............................................)</span>
+          <span style={{ fontSize: "12px", marginTop: "4px" }}>Staff Administrasi Keuangan</span>
+        </div>
+      </div>
+
+    </div>
+  );
+}
